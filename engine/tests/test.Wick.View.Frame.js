@@ -134,6 +134,29 @@ describe('Wick.View.Frame', function() {
             expect(frame.view.clipsLayer.children[1].bounds.width).to.equal(100);
             expect(frame.view.clipsLayer.children[1].bounds.height).to.equal(100);
         });
+
+        it('should create editable text boxes for text paths with editMode=true', function() {
+            var project = new Wick.Project();
+            var frame = project.activeFrame;
+
+            var text1 = new paper.PointText(new paper.Point());
+            text1.justification = 'left';
+            text1.fillColor = 'black';
+            text1.content = 'Text';
+            text1.fontSize = 24;
+
+            var text2 = new paper.PointText(new paper.Point());
+            text2.justification = 'left';
+            text2.fillColor = 'black';
+            text2.content = 'Text';
+            text2.fontSize = 24;
+            text2.data.editMode = true;
+
+            frame.addPath(TestUtils.paperToWickPath(text1));
+            frame.addPath(TestUtils.paperToWickPath(text2));
+
+            project.view.render();
+        });
     });
 
     describe('#applyChanges()', function() {

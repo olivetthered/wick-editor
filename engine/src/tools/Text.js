@@ -25,9 +25,6 @@ Wick.Tools.Text = class extends Wick.Tool {
         super();
 
         this.name = 'text';
-
-        this.hoveredOverText = null;
-        this.editingText = null;
     }
 
     /**
@@ -47,10 +44,7 @@ Wick.Tools.Text = class extends Wick.Tool {
     }
 
     onDeactivate (e) {
-        if(this.editingText) {
-            this.finishEditingText();
-        }
-        this.hoveredOverText = null;
+
     }
 
     onMouseMove (e) {
@@ -61,23 +55,22 @@ Wick.Tools.Text = class extends Wick.Tool {
             this.setCursor('text');
         } else {
             this.hoveredOverText = null;
+            this.setCursor('url(cursors/text.png) 32 32, auto');
         }
     }
 
     onMouseDown (e) {
-        if (this.editingText) {
-            this.finishEditingText();
-        } else if(this.hoveredOverText) {
-            this.editingText = this.hoveredOverText;
-            e.item.edit(this.project.view.paper);
+        if(this.hoveredOverText) {
+            e.item.data.editMode = true;
         } else {
             var text = new this.paper.PointText(e.point);
             text.justification = 'left';
             text.fillColor = 'black';
             text.content = 'Text';
             text.fontSize = 24;
-            this.fireEvent('canvasModified');
+            text.data.editMode = true;
         }
+        this.fireEvent('canvasModified');
     }
 
     onMouseDrag (e) {
@@ -91,6 +84,7 @@ Wick.Tools.Text = class extends Wick.Tool {
     /**
      * Stop editing the current text and apply changes.
      */
+     /*
     finishEditingText () {
         if(!this.editingText) return;
         this.editingText.finishEditing();
@@ -100,4 +94,5 @@ Wick.Tools.Text = class extends Wick.Tool {
         this.editingText = null;
         this.fireEvent('canvasModified');
     }
+    */
 }
