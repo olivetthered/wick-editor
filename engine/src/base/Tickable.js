@@ -473,6 +473,7 @@ Wick.Tickable = class extends Wick.Base {
 
           // Attach API methods
           var globalAPI = new GlobalAPI(this);
+          console.log("NamedChildren", this.project.activeNamedChildren)
           var otherObjects = this.parentClip ? this.parentClip.activeNamedChildren : [];
           var apiMembers = globalAPI.apiMembers.concat(otherObjects.map(otherObject => {
               return {
