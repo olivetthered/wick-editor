@@ -95,6 +95,9 @@ Wick.Tween = class extends Wick.Base {
         data.fullRotations = this.fullRotations;
         data.easingType = this.easingType;
 
+        data.originalLayerIndex = this.parentLayer.index;
+        data.originalPlayheadPosition = this.playheadPosition - this.parentFrame.start;
+
         return data;
     }
 
@@ -105,6 +108,9 @@ Wick.Tween = class extends Wick.Base {
         this.transformation = new Wick.Transformation(data.transformation);
         this.fullRotations = data.fullRotations;
         this.easingType = data.easingType;
+
+        this._originalLayerIndex = data.originalLayerIndex;
+        this._originalPlayheadPosition = data.originalPlayheadPosition;
     }
 
     /**
@@ -117,6 +123,22 @@ Wick.Tween = class extends Wick.Base {
 
     set playheadPosition (playheadPosition) {
         this._playheadPosition = playheadPosition;
+    }
+
+    /**
+     * The index of the layer that this tween last existed on. Used when copying and pasting tweens.
+     * @type {number}
+     */
+    get originalLayerIndex () {
+        return this._originalLayerIndex;
+    }
+
+    /**
+     * The playhead position that this tween last existed on. Used when copying and pasting tweens.
+     * @type {number}
+     */
+    get originalPlayheadPosition () {
+        return this._originalPlayheadPosition;
     }
 
     /**

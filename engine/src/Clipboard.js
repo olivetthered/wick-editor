@@ -96,15 +96,17 @@ Wick.Clipboard = class {
         // Shift frames so that they copy from the relative position of the first frame
         var startPlayheadPosition = Number.MAX_SAFE_INTEGER;
         exportedData.forEach(data => {
-            if(data.object.classname !== 'Frame') return;
-            if(data.object.start < startPlayheadPosition) {
-                startPlayheadPosition = data.object.start;
+            if(data.object.classname === 'Frame') {
+                if(data.object.start < startPlayheadPosition) {
+                    startPlayheadPosition = data.object.start;
+                }
             }
         });
         exportedData.forEach(data => {
-            if(data.object.classname !== 'Frame') return;
-            data.object.start -= startPlayheadPosition - 1;
-            data.object.end -= startPlayheadPosition - 1;
+            if(data.object.classname === 'Frame') {
+                data.object.start -= startPlayheadPosition - 1;
+                data.object.end -= startPlayheadPosition - 1;
+            }
         });
 
         // Set the new clipboard data
@@ -133,6 +135,19 @@ Wick.Clipboard = class {
         this._originalObjects.forEach(origObj => {
             if(origObj.parentFrame && origObj.parentFrame.onScreen) {
                 pasteInPlace = false;
+            }
+        });
+
+        // Adjust tween playhead positions to paste based on the active timeline's playhead position
+        this.clipboardData.forEach(object => {
+            if(object.classname === 'Tween') {
+                object._originalLayerIndex += layerIndicesMoved;
+
+                // Calculate adjusted playhead position of tween
+
+                // Find frame that tween will paste to
+
+                // Adjust tween playhead position accordingly
             }
         });
 

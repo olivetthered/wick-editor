@@ -392,6 +392,39 @@ describe('Wick.Clipboard', function() {
         // TODO
     });
 
+    it('should copy and paste tweens to correct positions', function () {
+        localStorage.clear();
+
+        var project = new Wick.Project();
+        project.activeTimeline.playheadPosition = 1;
+
+        var frame1 = project.activeFrame;
+        frame1.end = 5;
+        var frame2 = new Wick.Frame({start:6});
+        frame2.end = 10;
+        var frame3 = new Wick.Frame({start:11});
+        frame3.end = 15;
+        
+        project.activeLayer.addFrame(frame2);
+        project.activeLayer.addFrame(frame3);
+
+        var tween = new Wick.Tween({playheadPosition: 1});
+        frame1.addTween(tween);
+
+        project.selection.select(tween);
+        expect(project.copySelectionToClipboard()).to.equal(true);
+        project.focus.timeline.playheadPosition = 5;
+        expect(project.pasteClipboardContents()).to.equal(true);
+        expect(project.activeTimeline.frames.length).to.equal(3);
+        expect(frame1.tweens.length).to.equal(2);
+        expect(frame2.tweens.length).to.equal(0);
+        expect(frame3.tweens.length).to.equal(0);
+        expect(frame1.getTweenAtPosition(1)).to.equal(tween);
+        expect(frame1.getTweenAtPosition(5)).to.not.equal(null);
+        expect(frame1.getTweenAtPosition(5)).to.not.equal(undefined);
+        expect(frame1.getTweenAtPosition(5).playheadPosition).to.equal(5);
+    });
+
     it('(bug) copied objects should have new uuids', function () {
         localStorage.clear();
 
