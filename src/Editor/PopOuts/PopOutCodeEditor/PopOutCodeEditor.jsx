@@ -28,7 +28,7 @@ import missingImage from 'resources/interface/missing.jpg';
 // Import Ace Editor themes.
 import 'brace/mode/javascript';
 import 'brace/theme/monokai';
-
+import 'brace/ext/searchbox';
 
 import './_popoutcodeditor.scss';
 
@@ -93,16 +93,18 @@ class PopOutCodeEditor extends Component {
   }
 
   rerenderCodeEditor = () => {
-    this.forceUpdate();
+    // Not calling forceUpdate seems to improve performance.
+    // Does this cause any issues for displaying the correct script for the selection?
+    //this.forceUpdate();
   }
 
   codeHasErrors = () => {
-    return this.props.errors && this.props.errors.length > 0;
+    return this.props.error;
   }
 
   getCodeEditorInfo = () => {
     if (this.codeHasErrors()) {
-      let error = this.props.errors[0];
+      let error = this.props.error;
       return "error: on " + error.name + ' | ' + error.message + " (line " + error.lineNumber + ")";
     } else {
       return "editing: " + this.props.getSelectionType()
@@ -154,7 +156,7 @@ class PopOutCodeEditor extends Component {
                 addNewEditor={this.addNewEditor}
                 script={this.props.script}
                 rerenderCodeEditor={this.rerenderCodeEditor}
-                errors={this.props.errors}
+                error={this.props.error}
                 onMinorScriptUpdate={this.props.onMinorScriptUpdate}
                 onMajorScriptUpdate={this.props.onMajorScriptUpdate}
                 scriptInfoInterface={this.props.scriptInfoInterface}
@@ -163,6 +165,8 @@ class PopOutCodeEditor extends Component {
                 editScript={this.props.editScript}
                 onCursorChange={this.onCursorChange}
                 toggleCodeEditor={this.props.toggleCodeEditor}
+                requestAutosave={this.props.requestAutosave}
+                clearCodeEditorError={this.props.clearCodeEditorError}
               /> }
               {!this.props.selectionIsScriptable() && this.renderNotScriptableInfo()}
           </div>

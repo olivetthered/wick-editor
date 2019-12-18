@@ -35,6 +35,10 @@ Wick.Tools.Pencil = class extends Wick.Tool {
         this._movement = new paper.Point();
     }
 
+    get doubleClickEnabled () {
+        return false;
+    }
+
     /**
      * The pencil cursor.
      * @type {string}
@@ -60,7 +64,7 @@ Wick.Tools.Pencil = class extends Wick.Tool {
 
         if (!this.path) {
             this.path = new this.paper.Path({
-                strokeColor: this.getSetting('strokeColor'),
+                strokeColor: this.getSetting('strokeColor').rgba,
                 strokeWidth: this.getSetting('strokeWidth'),
                 strokeCap: 'round',
             });

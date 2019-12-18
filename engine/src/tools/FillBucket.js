@@ -27,6 +27,10 @@ Wick.Tools.FillBucket = class extends Wick.Tool {
         this.name = 'fillbucket';
     }
 
+    get doubleClickEnabled () {
+        return false;
+    }
+
     /**
      *
      * @type {string}
@@ -48,39 +52,41 @@ Wick.Tools.FillBucket = class extends Wick.Tool {
     }
 
     onMouseDown (e) {
-        var hitResult = paper.project.activeLayer.hitTest(e.point, {
-            fill: true
-        });
-        if(hitResult && hitResult.item) {
-            hitResult.item.fillColor = this.getSetting('fillColor');
-            this.fireEvent('canvasModified');
-        } else {
-            setTimeout(() => {
-                this.setCursor('wait');
-            }, 0);
+        setTimeout(() => {
+            this.setCursor('wait');
+        }, 0);
 
-            setTimeout(() => {
-                this.paper.project.activeLayer.hole({
-                    point: e.point,
-                    onFinish: (path) => {
-                        this.setCursor('default');
-                        if(path) {
-                            path.fillColor = this.getSetting('fillColor');
-                            path.name = null;
+        setTimeout(() => {
+            this.paper.hole({
+                point: e.point,
+                bgColor: new paper.Color(this.project.backgroundColor.hex),
+                gapFillAmount: this.getSetting('gapFillAmount'),
+                layers: this.project.activeFrames.map(frame => {
+                    return frame.view.pathsLayer;
+                }),
+                onFinish: (path) => {
+                    this.setCursor('default');
+                    if(path) {
+                        path.fillColor = this.getSetting('fillColor').rgba;
+                        path.name = null;
+                        this.addPathToProject();
+                        if(e.item) {
+                            path.insertAbove(e.item);
+                        } else {
                             this.paper.project.activeLayer.addChild(path);
                             this.paper.OrderingUtils.sendToBack([path]);
-                            this.fireEvent('canvasModified');
                         }
-                    },
-                    onError: (message) => {
-                        this.setCursor('default');
-                        this.fireEvent('error', {
-                            message: message,
-                        });
+                        this.fireEvent('canvasModified');
                     }
-                });
-            }, 50);
-        }
+                },
+                onError: (message) => {
+                    this.setCursor('default');
+                    this.fireEvent('error', {
+                        message: message,
+                    });
+                }
+            });
+        }, 50);
     }
 
     onMouseDrag (e) {

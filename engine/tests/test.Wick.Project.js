@@ -7,7 +7,7 @@ describe('Wick.Project', function() {
             expect(project.width).to.equal(720);
             expect(project.height).to.equal(405);
             expect(project.framerate).to.equal(12);
-            expect(project.backgroundColor).to.equal('#ffffff');
+            expect(project.backgroundColor.hex).to.equal('#ffffff');
 
             expect(project.zoom).to.equal(1);
             expect(project.pan.x).to.equal(0);
@@ -41,17 +41,29 @@ describe('Wick.Project', function() {
                 filename: 'foo.wav',
                 src: TestUtils.TEST_SOUND_SRC_WAV
             });
+            var clip = new Wick.ClipAsset({
+                filename: 'foo.wickobject',
+                data: new Wick.Clip().export(),
+            });
+            var svg = new Wick.SVGAsset({
+                filename: 'foo.svg',
+                data: TestUtils.TEST_SVG_SRC
+            });
             project.addAsset(image);
             project.addAsset(sound);
+            project.addAsset(clip);
+            project.addAsset(svg);
 
             var data = project.serialize();
 
-            expect(data.backgroundColor).to.equal('#ffffff');
+            expect(data.backgroundColor).to.equal('rgb(255,255,255)');
             expect(data.children).to.eql([
                 project.selection.uuid,
                 project.root.uuid,
                 image.uuid,
                 sound.uuid,
+                clip.uuid,
+                svg.uuid,
             ]);
             expect(data.classname).to.equal('Project');
             expect(data.focus).to.equal(project.focus.uuid);
@@ -87,7 +99,7 @@ describe('Wick.Project', function() {
             var data = project.serialize();
             var projectFromData = Wick.Project.fromData(data);
 
-            expect(projectFromData.backgroundColor).to.equal('#ffffff');
+            expect(projectFromData.backgroundColor.hex).to.equal('#ffffff');
             expect(projectFromData.getChildren().length).to.equal(4);
             expect(projectFromData.getChildren()[0]).to.equal(project.selection);
             expect(projectFromData.getChildren()[1]).to.equal(project.root);
@@ -371,6 +383,40 @@ describe('Wick.Project', function() {
                 done();
             });
         });
+
+        it('should import clips correctly', function(done) {
+            var parts = [ TestUtils.dataURItoBlob(TestUtils.TEST_WICKOBJ_SRC) ];
+            var file = new File(parts, 'object.wickobj', {
+                lastModified: new Date(0),
+                type: "application/json",
+            });
+
+            var project = new Wick.Project();
+            project.importFile(file, function (asset) {
+                expect(asset instanceof Wick.ClipAsset).to.equal(true);
+                expect(project.getAssets().length).to.equal(1);
+                expect(project.getAssets()[0]).to.equal(asset);
+                expect(asset.src).to.equal(TestUtils.TEST_WICKOBJ_SRC);
+                done();
+            });
+        });
+
+        it('should import clips correctly (missing mimetype bug)', function(done) {
+            var parts = [ TestUtils.dataURItoBlob(TestUtils.TEST_WICKOBJ_SRC) ];
+            var file = new File(parts, 'object.wickobj', {
+                lastModified: new Date(0),
+                type: "",
+            });
+
+            var project = new Wick.Project();
+            project.importFile(file, function (asset) {
+                expect(asset instanceof Wick.ClipAsset).to.equal(true);
+                expect(project.getAssets().length).to.equal(1);
+                expect(project.getAssets()[0]).to.equal(asset);
+                expect(asset.src.split(';')[1]).to.equal(TestUtils.TEST_WICKOBJ_SRC.split(';')[1]);
+                done();
+            });
+        });
     });
 
     describe('#tick', function () {
@@ -541,6 +587,45 @@ describe('Wick.Project', function() {
             expect(clip.transformation.rotation).to.be.closeTo(180, 0.01);
             expect(clip.transformation.opacity).to.be.closeTo(1.0, 0.01);
         });
+
+        it('should run all scripts in the correct order', function () {
+            // This checks that all default scrips run before all load scripts.
+            window.scriptOrder = [];
+
+            var project = new Wick.Project();
+            var frame = project.activeFrame;
+
+            var clip1 = new Wick.Clip();
+            var clip2 = new Wick.Clip();
+            var clip3 = new Wick.Clip();
+            frame.addClip(clip1);
+            frame.addClip(clip2);
+            frame.addClip(clip3);
+
+            clip1.addScript('load', 'window.scriptOrder.push({uuid: this.uuid, name: "load"})');
+            clip1.addScript('default', 'window.scriptOrder.push({uuid: this.uuid, name: "default"})');
+            clip2.addScript('load', 'window.scriptOrder.push({uuid: this.uuid, name: "load"})');
+            clip2.addScript('default', 'window.scriptOrder.push({uuid: this.uuid, name: "default"})');
+            clip3.addScript('load', 'window.scriptOrder.push({uuid: this.uuid, name: "load"})');
+            clip3.addScript('default', 'window.scriptOrder.push({uuid: this.uuid, name: "default"})');
+
+            project.tick();
+            project.tick(); // (tick twice because first tick calls onActivated not onActive)
+            expect(window.scriptOrder[0].uuid).to.equal(clip1.uuid);
+            expect(window.scriptOrder[0].name).to.equal('default');
+            expect(window.scriptOrder[1].uuid).to.equal(clip2.uuid);
+            expect(window.scriptOrder[1].name).to.equal('default');
+            expect(window.scriptOrder[2].uuid).to.equal(clip3.uuid);
+            expect(window.scriptOrder[2].name).to.equal('default');
+            expect(window.scriptOrder[3].uuid).to.equal(clip1.uuid);
+            expect(window.scriptOrder[3].name).to.equal('load');
+            expect(window.scriptOrder[4].uuid).to.equal(clip2.uuid);
+            expect(window.scriptOrder[4].name).to.equal('load');
+            expect(window.scriptOrder[5].uuid).to.equal(clip3.uuid);
+            expect(window.scriptOrder[5].name).to.equal('load');
+
+            delete window.scriptOrder;
+        });
     });
 
     describe('#play', function () {
@@ -594,9 +679,54 @@ describe('Wick.Project', function() {
 
             project.play({
                 onError: error => {
+                    expect(error.uuid).to.equal(frame.uuid);
+                    expect(error.name).to.equal("load");
+                    expect(error.lineNumber).to.equal(1);
                     expect(error.message).to.equal('thisWillCauseAnError is not defined');
                     done();
                 },
+            });
+        });
+
+        it('should select object that error occured in', function(done) {
+            var project = new Wick.Project();
+            project.framerate = 60;
+
+            project.activeFrame.addScript('load', 'thisWillCauseAnError();');
+
+            project.play({
+                onError: error => {
+                    project.stop();
+                    expect(error.uuid).to.equal(project.activeFrame.uuid);
+                    expect(error.name).to.equal("load");
+                    expect(error.lineNumber).to.equal(1);
+                    expect(error.message).to.equal('thisWillCauseAnError is not defined');
+                    expect(project.selection.getSelectedObject()).to.equal(project.activeFrame);
+                    expect(project.focus).to.equal(project.root);
+                    done();
+                }
+            });
+        });
+
+        it('should change focus to parent of object that error occured in', function(done) {
+            var project = new Wick.Project();
+            project.framerate = 60;
+
+            var clip = new Wick.Clip();
+            clip.activeFrame.addScript('load', 'thisWillCauseAnError();');
+            project.activeFrame.addClip(clip);
+
+            project.play({
+                onError: error => {
+                    project.stop();
+                    expect(error.uuid).to.equal(clip.activeFrame.uuid);
+                    expect(error.name).to.equal("load");
+                    expect(error.lineNumber).to.equal(1);
+                    expect(error.message).to.equal('thisWillCauseAnError is not defined');
+                    expect(project.focus).to.equal(clip);
+                    expect(project.selection.getSelectedObject()).to.equal(clip.activeFrame);
+                    done();
+                }
             });
         });
     });
@@ -638,19 +768,22 @@ describe('Wick.Project', function() {
         it('should run unload scripts on all clips when the project is stopped', function (done) {
             var project = new Wick.Project();
 
+            window.tempArea = {};
+
             var rootLevelClip = new Wick.Clip();
-            rootLevelClip.addScript('unload', 'this.__unloadScriptRan = true;');
+            rootLevelClip.addScript('unload', 'window.tempArea[this.uuid] = true;');
             project.activeFrame.addClip(rootLevelClip);
 
             var childClip = new Wick.Clip();
-            childClip.addScript('unload', 'this.__unloadScriptRan = true;');
+            childClip.addScript('unload', 'window.tempArea[this.uuid] = true;');
             rootLevelClip.activeFrame.addClip(childClip);
 
             project.play({
                 onAfterTick: () => {
                     project.stop();
-                    expect(rootLevelClip.__unloadScriptRan).to.equal(true);
-                    expect(childClip.__unloadScriptRan).to.equal(true);
+                    expect(window.tempArea[rootLevelClip.uuid]).to.equal(true);
+                    expect(window.tempArea[childClip.uuid]).to.equal(true);
+                    delete window.tempArea;
                     done();
                 }
             });
@@ -670,6 +803,43 @@ describe('Wick.Project', function() {
                     }
                 }
             });
+        });
+
+        it('should clear all custom attributes set by scripts', function (done) {
+            var project = new Wick.Project();
+
+            var frame = project.activeFrame;
+            var clip = new Wick.Clip();
+            clip.addScript('default', 'this._shouldNotLeak = 123');
+            frame.addClip(clip);
+
+            project.play({
+                onAfterTick: () => {
+                    expect(clip._shouldNotLeak).to.equal(123);
+                    project.stop();
+                    expect(clip._shouldNotLeak).to.equal(undefined);
+                    done();
+                }
+            });
+        });
+    });
+
+    describe('#inject', function () {
+        it('should inject into a div correctly', function () {
+            var container = document.createElement('div');
+            container.width = 500;
+            container.height = 500;
+            document.body.appendChild(container);
+
+            var project = new Wick.Project();
+
+            project.inject(container);
+
+            project.stop();
+
+            expect(container.children[0]).to.equal(project.view._svgCanvas);
+
+            document.body.removeChild(container);
         });
     });
 
@@ -897,7 +1067,9 @@ describe('Wick.Project', function() {
             });
             project.addAsset(soundAsset);
 
-            var clipAsset = new Wick.ClipAsset();
+            var clipAsset = new Wick.ClipAsset({
+                data: new Wick.Clip().export(),
+            });
             project.addAsset(clipAsset);
 
             expect(project.getAssets()).to.eql([imageAsset, soundAsset, clipAsset]);
@@ -916,7 +1088,9 @@ describe('Wick.Project', function() {
             });
             project.addAsset(soundAsset);
 
-            var clipAsset = new Wick.ClipAsset();
+            var clipAsset = new Wick.ClipAsset({
+                data: new Wick.Clip().export(),
+            });
             project.addAsset(clipAsset);
 
             expect(project.getAssets('Image')).to.eql([imageAsset]);
@@ -935,7 +1109,9 @@ describe('Wick.Project', function() {
             });
             project.addAsset(soundAsset);
 
-            var clipAsset = new Wick.ClipAsset();
+            var clipAsset = new Wick.ClipAsset({
+                data: new Wick.Clip().export(),
+            });
             project.addAsset(clipAsset);
 
             expect(project.getAssets('Sound')).to.eql([soundAsset]);
@@ -954,7 +1130,9 @@ describe('Wick.Project', function() {
             });
             project.addAsset(soundAsset);
 
-            var clipAsset = new Wick.ClipAsset();
+            var clipAsset = new Wick.ClipAsset({
+                data: new Wick.Clip().export(),
+            });
             project.addAsset(clipAsset);
 
             expect(project.getAssets('Clip')).to.eql([clipAsset]);
@@ -1024,11 +1202,11 @@ describe('Wick.Project', function() {
             var audioInfo = project.getAudioInfo();
             expect(audioInfo.length).to.equal(2);
             expect(audioInfo[0].start).to.equal(0);
-            expect(audioInfo[0].end).to.equal(9 * (1000 / project.framerate));
+            expect(audioInfo[0].end).to.equal(10 * (1000 / project.framerate));
             expect(audioInfo[0].offset).to.equal(0);
             expect(audioInfo[0].src).to.equal(sound1.src);
             expect(audioInfo[1].start).to.equal(10 * (1000 / project.framerate));
-            expect(audioInfo[1].end).to.equal(29 * (1000 / project.framerate));
+            expect(audioInfo[1].end).to.equal(30 * (1000 / project.framerate));
             expect(audioInfo[1].offset).to.equal(0);
             expect(audioInfo[1].src).to.equal(sound1.src);
         });
@@ -1044,7 +1222,7 @@ describe('Wick.Project', function() {
             });
         });
 
-        it('should return an audio track with all project sounds playing at correct times' , function (done) {
+        it('should return an audio track with a single 1 second sound' , function (done) {
             var project = new Wick.Project();
 
             var sound = new Wick.SoundAsset({
@@ -1054,10 +1232,51 @@ describe('Wick.Project', function() {
             project.addAsset(sound);
 
             project.activeFrame.sound = sound;
-            project.activeFrame.end = 10;
+            project.activeFrame.end = 12;
 
             project.generateAudioTrack({}, audioBuffer => {
-                expect(audioBuffer.length).to.equal(8064);
+                expect(audioBuffer.length).to.equal(44100 * 1);
+                done();
+            });
+        });
+
+        it('should return an audio track with a single 0.5 second sound' , function (done) {
+            var project = new Wick.Project();
+
+            var sound = new Wick.SoundAsset({
+                filename: 'foo.wav',
+                src: TestUtils.TEST_SOUND_SRC_WAV
+            });
+            project.addAsset(sound);
+
+            project.activeFrame.sound = sound;
+            project.activeFrame.end = 6;
+
+            project.generateAudioTrack({}, audioBuffer => {
+                expect(audioBuffer.length).to.equal(44100 * 0.5);
+                done();
+            });
+        });
+
+        it('should return an audio track two 0.5 second sounds' , function (done) {
+            var project = new Wick.Project();
+
+            var sound = new Wick.SoundAsset({
+                filename: 'foo.wav',
+                src: TestUtils.TEST_SOUND_SRC_WAV
+            });
+            project.addAsset(sound);
+
+            var frame1 = project.activeFrame;
+            frame1.sound = sound;
+            frame1.end = 6;
+
+            var frame2 = new Wick.Frame({start: 7, end: 12});
+            project.activeLayer.addFrame(frame2);
+            frame2.sound = sound;
+
+            project.generateAudioTrack({}, audioBuffer => {
+                expect(audioBuffer.length).to.equal(44100 * 1.0);
                 done();
             });
         });
@@ -1069,6 +1288,46 @@ describe('Wick.Project', function() {
 
     describe('#isKeyJustPressed', function () {
         // TODO
+    });
+
+    describe('#copySelectionToClipboard', function () {
+        it('should copy correctly', function () {
+            // TODO
+        });
+    });
+
+    describe('#pasteClipboardContents', function () {
+        it('should paste correctly', function () {
+            // TODO
+        });
+    });
+
+    describe('#duplicateSelection', function () {
+        it('should copy and paste correctly', function () {
+            var project = new Wick.Project();
+            project.selection.select(project.activeFrame);
+            project.activeTimeline.playheadPosition = 2;
+            project.duplicateSelection();
+            expect(project.activeLayer.frames.length).to.equal(2);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(1)).to.not.equal(null);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(2)).to.not.equal(null);
+        });
+    });
+
+    describe('#cutSelectionToClipboard', function () {
+        it('should cut correctly', function () {
+            var project = new Wick.Project();
+            project.activeLayer.addFrame(new Wick.Frame({start:2}));
+            project.selection.select(project.activeLayer.getFrameAtPlayheadPosition(2));
+            project.cutSelectionToClipboard();
+            expect(project.activeLayer.frames.length).to.equal(1);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(1)).to.not.equal(null);
+            project.activeTimeline.playheadPosition = 2;
+            project.pasteClipboardContents();
+            expect(project.activeLayer.frames.length).to.equal(2);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(1)).to.not.equal(null);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(2)).to.not.equal(null);
+        });
     });
 
     describe('#clipboard + history bug', function () {
@@ -1099,6 +1358,13 @@ describe('Wick.Project', function() {
 
     describe('createImagePathFromAsset', function () {
         it('should create an image path', function (done) {
+            // TODO
+            done();
+        })
+    });
+
+    describe('createClipInstanceFromAsset', function () {
+        it('should create a clip', function (done) {
             // TODO
             done();
         })
@@ -1161,14 +1427,14 @@ describe('Wick.Project', function() {
         project.activeFrame.addPath(path);
 
         // path isn't selected. fillcolor should not change
-        project.toolSettings.setSetting('fillColor', '#ff0000');
+        project.toolSettings.setSetting('fillColor', new Wick.Color('#ff0000'));
         expect(path.fillColor.toCSS(true)).to.equal('#000000');
 
         project.selection.select(path);
         expect(path.fillColor.toCSS(true)).to.equal('#000000');
 
         // path is selected, fillcolor should be changed
-        project.toolSettings.setSetting('fillColor', '#00ff00');
+        project.toolSettings.setSetting('fillColor', new Wick.Color('#00ff00'));
         expect(path.fillColor.toCSS(true)).to.equal('#00ff00');
         expect(path.strokeColor.toCSS(true)).to.equal('#000000');
     });
@@ -1184,14 +1450,14 @@ describe('Wick.Project', function() {
         project.activeFrame.addPath(path);
 
         // path isn't selected. fillcolor should not change
-        project.toolSettings.setSetting('strokeColor', '#ff0000');
+        project.toolSettings.setSetting('strokeColor', new Wick.Color('#ff0000'));
         expect(path.strokeColor.toCSS(true)).to.equal('#000000');
 
         project.selection.select(path);
         expect(path.strokeColor.toCSS(true)).to.equal('#000000');
 
         // path is selected, fillcolor should be changed
-        project.toolSettings.setSetting('strokeColor', '#00ff00');
+        project.toolSettings.setSetting('strokeColor', new Wick.Color('#00ff00'));
         expect(path.strokeColor.toCSS(true)).to.equal('#00ff00');
         expect(path.fillColor.toCSS(true)).to.equal('#000000');
     });
@@ -1279,10 +1545,16 @@ describe('Wick.Project', function() {
         })
     });
 
-    describe('#createTweenOnSelectedFrames', function () {
-        it('should create tweens on selected frames', function () {
+    describe('#canCreateTween', function () {
+        it('should determine if tweens can be created or not', function () {
             // TODO
-        })
+        });
+    });
+
+    describe('#createTween', function () {
+        it('should create tweens', function () {
+            // TODO
+        });
     });
 
     describe('#extendSelectedFrames', function () {
@@ -1305,6 +1577,12 @@ describe('Wick.Project', function() {
 
     describe('#moveSelectedFramesLeft', function () {
         it('should move selected frames left', function () {
+            // TODO
+        });
+    });
+
+    describe('#insertBlankFrame', function () {
+        it('should insert blank frames correctly', function () {
             // TODO
         });
     });

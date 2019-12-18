@@ -42,7 +42,17 @@ Wick.GUIElement.Tooltip = class extends Wick.GUIElement {
         ctx.save();
         var tx = x - textWidth/2;
         var ty = y + textHeight;
-        if(tx < 3) tx = 3;
+
+        // Restrict tooltip so it's always on-screen
+        var xMin = 3;
+        if(tx < xMin) tx = xMin;
+
+        if(ty > this.canvas.height) {
+            ty = this.canvas.height - 35
+        } else if (ty > this.canvas.height - 25) {
+            ty = this.canvas.height - 20;
+        }
+
         ctx.translate(tx, ty);
 
             // Body

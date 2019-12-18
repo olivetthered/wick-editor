@@ -20,6 +20,30 @@ describe('Wick.WickFile', function () {
             });
         });
 
+        it('should read/write a base64 wick project without errors', function (done) {
+            Wick.ObjectCache.clear();
+
+            var project = new Wick.Project();
+
+            Wick.WickFile.toWickFile(project, wickFile => {
+                expect(wickFile.length).not.to.equal(null);
+                expect(wickFile.length).not.to.equal(undefined);
+                expect(typeof wickFile).to.equal('string');
+                expect(wickFile.length).not.to.equal(0);
+
+                Wick.ObjectCache.clear();
+                Wick.WickFile.fromWickFile(wickFile, loadedProject => {
+                    expect(loadedProject instanceof Wick.Project).to.equal(true);
+                    expect(loadedProject.selection.parent).to.equal(loadedProject);
+                    expect(loadedProject.selection.project).to.equal(loadedProject);
+                    expect(loadedProject.root.parent).to.equal(loadedProject);
+                    expect(loadedProject.root.project).to.equal(loadedProject);
+                    expect(loadedProject.getAssets().length).to.equal(0);
+                    done();
+                }, 'base64');
+            }, 'base64');
+        });
+
         it('should create and load a project from a wick file correctly with assets', function (done) {
             Wick.ObjectCache.clear();
             Wick.FileCache.clear();
@@ -38,6 +62,12 @@ describe('Wick.WickFile', function () {
             });
             project.addAsset(soundAsset);
 
+            var clipAsset = new Wick.ClipAsset({
+                filename: 'foo.wickobj',
+                src: TestUtils.TEST_WICKOBJ_SRC,
+            });
+            project.addAsset(clipAsset);
+
             Wick.WickFile.toWickFile(project, function (wickFile) {
                 Wick.FileCache.clear();
                 Wick.ObjectCache.clear();
@@ -47,8 +77,10 @@ describe('Wick.WickFile', function () {
                     expect(loadedProject.getAssets().length).to.equal(project.getAssets().length);
                     expect(loadedProject.getAssets()[0].uuid).to.equal(project.getAssets()[0].uuid);
                     expect(loadedProject.getAssets()[1].uuid).to.equal(project.getAssets()[1].uuid);
+                    expect(loadedProject.getAssets()[2].uuid).to.equal(project.getAssets()[2].uuid);
                     expect(loadedProject.getAssets()[0].src).to.equal(project.getAssets()[0].src);
                     expect(loadedProject.getAssets()[1].src).to.equal(project.getAssets()[1].src);
+                    expect(loadedProject.getAssets()[2].src).to.equal(project.getAssets()[2].src);
                     done();
                 });
             });

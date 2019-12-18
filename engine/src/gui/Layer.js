@@ -54,19 +54,6 @@ Wick.GUIElement.Layer = class extends Wick.GUIElement {
                 this.projectWasModified();
             }
         });
-
-        this.addTweenButton = new Wick.GUIElement.LayerButton(model, {
-            untoggledTooltip: 'Add Tween',
-            untoggledIcon: 'add_tween',
-            isToggledFn: () => {
-                return false;
-            },
-            clickFn: () => {
-                this.model.activeFrame && this.model.activeFrame.createTween();
-                this.model.activate();
-                this.projectWasModified();
-            }
-        });
     }
 
     draw () {
@@ -97,6 +84,9 @@ Wick.GUIElement.Layer = class extends Wick.GUIElement {
         if(this.model.isSelected) {
             ctx.strokeStyle = Wick.GUIElement.SELECTED_ITEM_BORDER_COLOR;
             ctx.lineWidth = 3;
+        } else if(this.mouseState === 'over' || this.mouseState === 'down') {
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = Wick.GUIElement.LAYER_LABEL_HOVER_COLOR;
         } else {
             ctx.strokeStyle = 'rgba(0,0,0,0)';
             ctx.lineWidth = 0;
@@ -111,7 +101,7 @@ Wick.GUIElement.Layer = class extends Wick.GUIElement {
         ctx.restore();
 
         // Label text
-        var maxWidth = Wick.GUIElement.LAYERS_CONTAINER_WIDTH - 35;
+        var maxWidth = Wick.GUIElement.LAYERS_CONTAINER_WIDTH - 10;
         ctx.save();
         ctx.beginPath();
         ctx.rect(0, 0, maxWidth, this.gridCellHeight);
@@ -120,23 +110,18 @@ Wick.GUIElement.Layer = class extends Wick.GUIElement {
         ctx.fillStyle = this.model.isActive
           ? Wick.GUIElement.LAYER_LABEL_ACTIVE_FONT_COLOR
           : Wick.GUIElement.LAYER_LABEL_INACTIVE_FONT_COLOR;
-        ctx.fillText(this.model.name, 53, this.gridCellHeight / 2 + 6);
+        ctx.fillText(this.model.name, 57, this.gridCellHeight / 2 + 6);
         ctx.restore();
 
         // Buttons
         ctx.save();
-        ctx.translate(20, 20);
+        ctx.translate(20, this.gridCellHeight / 2);
             this.hideButton.draw(this.model.hidden ? 'eye_closed' : 'eye_open', this.model.hidden);
         ctx.restore();
 
         ctx.save();
-        ctx.translate(40, 20);
+        ctx.translate(40, this.gridCellHeight / 2);
             this.lockButton.draw(this.model.locked ? 'lock_closed' : 'lock_open', this.model.locked);
-        ctx.restore();
-
-        ctx.save();
-        ctx.translate(175, 20);
-            this.addTweenButton.draw('add_tween', false);
         ctx.restore();
 
         // Reordering ghost

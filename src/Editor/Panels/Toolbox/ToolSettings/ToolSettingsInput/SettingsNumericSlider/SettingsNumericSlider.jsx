@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import Popover from 'react-popover';
+import ReactTooltip from 'react-tooltip';
 
 import WickInput from 'Editor/Util/WickInput/WickInput';
 import ToolIcon from 'Editor/Util/ToolIcon/ToolIcon';
@@ -44,7 +45,7 @@ class SettingsNumericSlider extends Component {
       clearTimeout(this.sliderTimeout);
       this.sliderTimeout = setTimeout(() => {
           this.setSlider(false)
-      }, 400);
+      }, 750);
   }
 
   /**
@@ -63,34 +64,58 @@ class SettingsNumericSlider extends Component {
   }
 
   render () {
+      /*TODO Move the tooltip to somewhere more generic*/
+
+      // Detect if on mobile to disable tooltips.
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
       return (
-          <div
-          className="settings-numeric-slider-container"
-          onMouseOver = {() => this.setSlider(true)}
-          onMouseLeave = {this.closeSlider}>
-            <Popover
-            isOpen={this.state.sliderOn}
-            preferPlace='below'
-            enterExitTransitionDurationMs={200}
-            refreshIntervalMs={100}
-            body={this.getSliderNode()}
-            tipSize={5}>
-                <div className="settings-numeric-top-container">
-                    <div className="settings-numeric-slider-icon">
-                        <ToolIcon name={this.props.icon}/>
-                    </div>
-                        <WickInput
-                            type="numeric"
-                            containerclassname="settings-numeric-wick-input-container"
-                            className="settings-numeric-input"
-                            onChange={this.props.onChange}
-                            onFocus={() => {this.setSlider(true)}}
-                            onBlur={() => {this.setSlider(false)}}
-                            value={this.props.value}
-                            {...this.props.inputRestrictions}/>
+        <div
+        onMouseLeave = {this.closeSlider}
+        onMouseOver = {() => {clearTimeout(this.sliderTimeout)}}
+        className="settings-numeric-slider-container">
+          <Popover
+          isOpen={this.state.sliderOn}
+          preferPlace='below'
+          enterExitTransitionDurationMs={200}
+          refreshIntervalMs={100}
+          body={this.getSliderNode()}
+          tipSize={5}>
+              <div className="settings-numeric-top-container">
+                {/*TODO Move the tooltip to somewhere more generic*/}
+                <div
+                  className="settings-numeric-slider-icon"
+                  data-tip
+                  data-for={'setting-' + this.props.name}
+                  id={'setting-' + this.props.name}>
+                  <ToolIcon name={this.props.icon}/>
+                    <ReactTooltip
+                      disable={isMobile}
+                      id={'setting-' + this.props.name}
+                      type='info'
+                      place={'bottom'}
+                      effect='solid'
+                      aria-haspopup='true'
+                      className="wick-tooltip">
+                      <span>{this.props.name}</span>
+                    </ReactTooltip>
                 </div>
-            </Popover>
-          </div>
+                <div
+                  onMouseOver = {() => this.setSlider(true)}>
+                    <WickInput
+                      type="numeric"
+                      containerclassname="settings-numeric-wick-input-container"
+                      className="settings-numeric-input"
+                      onChange={this.props.onChange}
+                      onFocus={() => {this.setSlider(true)}}
+                      onBlur={() => {this.setSlider(false)}}
+                      value={this.props.value}
+                      {...this.props.inputRestrictions}
+                    />
+              </div>
+            </div>
+          </Popover>
+        </div>
       );
   }
 }

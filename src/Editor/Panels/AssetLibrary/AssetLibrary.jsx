@@ -36,8 +36,12 @@ class AssetLibrary extends Component {
     }
   }
 
-  handleAdd = (uuid) => {
-    this.props.openFileDialog();
+  openFileDialog = (uuid) => {
+    this.props.openImportAssetFileDialog();
+  }
+
+  openBuiltinAssetLibrary = () => {
+    this.props.openModal('BuiltinLibrary');
   }
 
   updateFilter = (text) => {
@@ -87,9 +91,17 @@ class AssetLibrary extends Component {
         <div className="btn-asset-upload">
           <ActionButton
             color="upload"
-            action={this.handleAdd}
-            id="button-asset-upload"
+            action={this.openBuiltinAssetLibrary}
+            id="button-asset-builtin"
             icon="add"
+            tooltip="Add Builtin Asset" />
+        </div>
+        <div className="btn-asset-builtin">
+          <ActionButton
+            color="upload"
+            action={this.openFileDialog}
+            id="button-asset-upload"
+            icon="upload"
             tooltip="Upload Assets" />
         </div>
       </div>

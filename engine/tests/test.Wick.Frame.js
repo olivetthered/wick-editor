@@ -142,6 +142,45 @@ describe('Wick.Frame', function() {
         });
     });
 
+    describe('#onScreen', function () {
+        it('should only be considered on screen if the parent playhead is over the frame', function () {
+            var project = new Wick.Project();
+
+            var frame1 = project.activeFrame;
+            var frame2 = new Wick.Frame({start: 2});
+            project.activeLayer.addFrame(frame2);
+
+            project.activeTimeline.playheadPosition = 1;
+            expect(frame1.onScreen).to.equal(true);
+            expect(frame2.onScreen).to.equal(false);
+
+            project.activeTimeline.playheadPosition = 2;
+            expect(frame1.onScreen).to.equal(false);
+            expect(frame2.onScreen).to.equal(true);
+        });
+
+        it('should not be on screen if the parent playhead is over the frame, but the parent clip is not on screen', function () {
+            var project = new Wick.Project();
+
+            var frame1 = project.activeFrame;
+            var frame2 = new Wick.Frame({start: 2});
+            project.activeLayer.addFrame(frame2);
+
+            var clip1 = new Wick.Clip();
+            frame1.addClip(clip1);
+            var clip2 = new Wick.Clip();
+            frame2.addClip(clip2);
+
+            project.activeTimeline.playheadPosition = 1;
+            expect(clip1.activeFrame.onScreen).to.equal(true);
+            expect(clip2.activeFrame.onScreen).to.equal(false);
+
+            project.activeTimeline.playheadPosition = 2;
+            expect(clip1.activeFrame.onScreen).to.equal(false);
+            expect(clip2.activeFrame.onScreen).to.equal(true);
+        });
+    });
+
     describe('#contentful', function () {
         it('should determine contentful correctly', function() {
             var frameEmpty = new Wick.Frame();
@@ -275,13 +314,14 @@ describe('Wick.Frame', function() {
 
     describe('#tick', function () {
         it('script errors from child clips should bubble up', function() {
-            var frame = new Wick.Frame();
+            var project = new Wick.Project();
+            var frame = project.activeFrame;
 
             var child = new Wick.Clip();
             child.addScript('load', 'thisWillCauseAnError()');
             frame.addClip(child);
 
-            var error = frame.tick();
+            var error = project.tick();
             expect(error).to.not.equal(null);
             expect(error.message).to.equal('thisWillCauseAnError is not defined');
             expect(error.lineNumber).to.equal(1);
@@ -289,7 +329,8 @@ describe('Wick.Frame', function() {
         });
 
         it('script errors from child frames should bubble up', function() {
-            var frame = new Wick.Frame();
+            var project = new Wick.Project();
+            var frame = project.activeFrame;
 
             var child = new Wick.Frame();
             child.addScript('load', 'thisWillCauseAnError()');
@@ -297,7 +338,7 @@ describe('Wick.Frame', function() {
             frame.clips[0].timeline.addLayer(new Wick.Layer());
             frame.clips[0].timeline.layers[0].addFrame(child);
 
-            var error = frame.tick();
+            var error = project.tick();
             expect(error).to.not.equal(null);
             expect(error.message).to.equal('thisWillCauseAnError is not defined');
             expect(error.lineNumber).to.equal(1);
@@ -309,7 +350,7 @@ describe('Wick.Frame', function() {
             var frame = project.activeFrame;
 
             frame.addScript('load', 'stop(); play();');
-            var error = frame.tick();
+            var error = project.tick();
             expect(error).to.equal(null);
         });
 
@@ -342,7 +383,7 @@ describe('Wick.Frame', function() {
                 var frame = project.activeFrame;
 
                 frame.addScript('load', 'this.__project = project');
-                var error = frame.tick();
+                var error = project.tick();
                 expect(error).to.equal(null);
                 expect(frame.parentClip.__project).to.equal(project.root);
                 expect(frame.parentClip.__project.width).to.equal(project.width);
@@ -356,7 +397,7 @@ describe('Wick.Frame', function() {
                 var frame = project.activeFrame;
 
                 frame.addScript('load', 'this.__parent = parent');
-                var error = frame.tick();
+                var error = project.tick();
                 expect(error).to.equal(null);
                 expect(frame.parentClip.__parent).to.equal(frame.parentClip);
             });
@@ -379,7 +420,7 @@ describe('Wick.Frame', function() {
             var frame = project.activeFrame;
 
             frame.addScript('load', 'this.__foo = foo; this.__bar = bar;');
-            var error = frame.tick();
+            var error = project.tick();
             expect(error).to.equal(null);
             expect(frame.parentClip.__foo).to.equal(clipA);
             expect(frame.parentClip.__bar).to.equal(clipB);
@@ -426,25 +467,25 @@ describe('Wick.Frame', function() {
             expect(frame1.isSoundPlaying()).to.equal(false);
             expect(frame2.isSoundPlaying()).to.equal(false);
 
-            project.root.tick(); // playhead = 1
+            project.tick(); // playhead = 1
 
             expect(frame1.isSoundPlaying()).to.equal(true);
             expect(frame2.isSoundPlaying()).to.equal(false);
 
-            project.root.tick(); // playhead = 2
-            project.root.tick(); // playhead = 3
-            project.root.tick(); // playhead = 4
-            project.root.tick(); // playhead = 5
-            project.root.tick(); // playhead = 6
+            project.tick(); // playhead = 2
+            project.tick(); // playhead = 3
+            project.tick(); // playhead = 4
+            project.tick(); // playhead = 5
+            project.tick(); // playhead = 6
 
             expect(frame1.isSoundPlaying()).to.equal(false);
             expect(frame2.isSoundPlaying()).to.equal(true);
 
-            project.root.tick(); // playhead = 7
-            project.root.tick(); // playhead = 8
-            project.root.tick(); // playhead = 9
-            project.root.tick(); // playhead = 10
-            project.root.tick(); // playhead = 11
+            project.tick(); // playhead = 7
+            project.tick(); // playhead = 8
+            project.tick(); // playhead = 9
+            project.tick(); // playhead = 10
+            project.tick(); // playhead = 11
 
             expect(frame1.isSoundPlaying()).to.equal(false);
             expect(frame2.isSoundPlaying()).to.equal(false);
@@ -692,23 +733,97 @@ describe('Wick.Frame', function() {
         });
     });
 
-    describe('#copyForward', function () {
-        it('should copy forward correctly', function () {
+    describe('#insertBlankFrame', function () {
+        it('should insert a blank frame', function () {
             var project = new Wick.Project();
             project.activeFrame.remove();
 
-            var frameToCopy = new Wick.Frame({start: 1, end: 10, identifier: 'frameToCopy'});
-            project.activeLayer.addFrame(frameToCopy);
-            frameToCopy.addClip(new Wick.Clip({identifier: 'childShouldBeCopied'}));
+            var frameToCut = new Wick.Frame({start: 1, end: 10, identifier: 'frameToCut'});
+            project.activeLayer.addFrame(frameToCut);
+            frameToCut.addClip(new Wick.Clip({identifier: 'childShouldBeCopied'}));
 
-            frameToCopy.copyForward();
+            project.activeTimeline.playheadPosition = 6;
+            frameToCut.insertBlankFrame();
+
+            expect(project.activeLayer.frames.length).to.equal(3);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(1)).to.equal(frameToCut);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(1).identifier).to.equal('frameToCut');
+            expect(project.activeLayer.getFrameAtPlayheadPosition(1).length).to.equal(5);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(6).identifier).to.equal(null);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(7).identifier).to.equal(null);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(7).length).to.equal(4);
+        });
+
+        it('should add blank frame but not cut frame if the parent playhead is not in range', function () {
+            var project = new Wick.Project();
+            project.activeFrame.remove();
+
+            var frameToCut = new Wick.Frame({start: 1, end: 10, identifier: 'frameToCut'});
+            project.activeLayer.addFrame(frameToCut);
+            frameToCut.addClip(new Wick.Clip({identifier: 'childShouldBeCopied'}));
+
+            project.activeTimeline.playheadPosition = 11;
+            frameToCut.insertBlankFrame();
 
             expect(project.activeLayer.frames.length).to.equal(2);
-            expect(project.activeLayer.getFrameAtPlayheadPosition(1)).to.equal(frameToCopy);
-            expect(project.activeLayer.getFrameAtPlayheadPosition(1).identifier).to.equal('frameToCopy');
-            expect(project.activeLayer.getFrameAtPlayheadPosition(1).length).to.equal(10);
-            expect(project.activeLayer.getFrameAtPlayheadPosition(11).identifier).to.equal(null);
-            expect(project.activeLayer.getFrameAtPlayheadPosition(11).length).to.equal(10);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(1)).to.equal(frameToCut);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(1).identifier).to.equal('frameToCut');
+            expect(project.activeLayer.getFrameAtPlayheadPosition(11)).to.not.equal(frameToCut);
+            expect(project.activeLayer.getFrameAtPlayheadPosition(11).length).to.equal(1);
+        });
+    });
+
+    describe('#extendAndPushOtherFrames', function () {
+        it('should extend a frame and push other frames', function () {
+            var project = new Wick.Project();
+            project.activeFrame.remove();
+
+            var frame1 = new Wick.Frame({start: 1, end: 1, identifier: 'frame1'});
+            project.activeLayer.addFrame(frame1);
+            var frame2 = new Wick.Frame({start: 2, end: 2, identifier: 'frame2'});
+            project.activeLayer.addFrame(frame2);
+            var frame3 = new Wick.Frame({start: 3, end: 10, identifier: 'frame3'});
+            project.activeLayer.addFrame(frame3);
+            var frame4 = new Wick.Frame({start: 11, end: 11, identifier: 'frame4'});
+            project.activeLayer.addFrame(frame4);
+
+            frame1.extendAndPushOtherFrames();
+
+            expect(frame1.start).to.equal(1);
+            expect(frame1.end).to.equal(2);
+            expect(frame2.start).to.equal(3);
+            expect(frame2.end).to.equal(3);
+            expect(frame3.start).to.equal(4);
+            expect(frame3.end).to.equal(11);
+            expect(frame4.start).to.equal(12);
+            expect(frame4.end).to.equal(12);
+        });
+    });
+
+    describe('#shrinkAndPullOtherFrames', function () {
+        it('should shrink a frame and pull other frames', function () {
+            var project = new Wick.Project();
+            project.activeFrame.remove();
+
+            var frame1 = new Wick.Frame({start: 1, end: 5, identifier: 'frame1'});
+            project.activeLayer.addFrame(frame1);
+            var frame2 = new Wick.Frame({start: 6, end: 6, identifier: 'frame2'});
+            project.activeLayer.addFrame(frame2);
+            var frame3 = new Wick.Frame({start: 7, end: 10, identifier: 'frame3'});
+            project.activeLayer.addFrame(frame3);
+            var frame4 = new Wick.Frame({start: 11, end: 11, identifier: 'frame4'});
+            project.activeLayer.addFrame(frame4);
+
+            frame1.shrinkAndPullOtherFrames();
+
+            expect(frame1.start).to.equal(1);
+            expect(frame1.end).to.equal(4);
+            expect(frame2.start).to.equal(5);
+            expect(frame2.end).to.equal(5);
+            expect(frame3.start).to.equal(6);
+            expect(frame3.end).to.equal(9);
+            expect(frame4.start).to.equal(10);
+            expect(frame4.end).to.equal(10);
         });
     });
 });

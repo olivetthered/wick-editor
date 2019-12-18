@@ -32,6 +32,10 @@ Wick.Tools.Eyedropper = class extends Wick.Tool {
         this.colorPreview = null;
     }
 
+    get doubleClickEnabled () {
+        return false;
+    }
+
     /**
      *
      * @type {string}
@@ -68,13 +72,9 @@ Wick.Tools.Eyedropper = class extends Wick.Tool {
     onMouseDown (e) {
         this._destroyColorPreview();
 
-        if(!e.modifiers.shift) {
-            this.project.toolSettings.setSetting('fillColor', this.hoverColor);
-        } else {
-            this.project.toolSettings.setSetting('strokeColor', this.hoverColor);
-        }
-
-        this.fireEvent('canvasModified');
+        this.fireEvent('eyedropperPickedColor', {
+            color: this.hoverColor,
+        });
     }
 
     onMouseDrag (e) {

@@ -40,15 +40,27 @@ Wick.GUIElement.Frame = class extends Wick.GUIElement {
         var heightPx = this.gridCellHeight - 1;
 
         var edge = this._mouseOverFrameEdge();
-        if(!edge && this.mouseState === 'over' || this.mouseState === 'down') {
-            ctx.fillStyle = Wick.GUIElement.FRAME_HOVERED_OVER;
+
+        if(this.model.contentful || this.model.tweens.length > 0 || this.model.sound) {
+            ctx.fillStyle = Wick.GUIElement.FRAME_CONTENTFUL_FILL_COLOR;
         } else {
             ctx.fillStyle = Wick.GUIElement.FRAME_UNCONTENTFUL_FILL_COLOR;
         }
-
         ctx.beginPath();
         ctx.roundRect(0, 0, widthPx, heightPx, Wick.GUIElement.FRAME_BORDER_RADIUS);
         ctx.fill();
+        if(!edge && this.mouseState === 'over' || this.mouseState === 'down') {
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = Wick.GUIElement.FRAME_HOVERED_OVER;
+            ctx.stroke();
+        }
+
+        // Add selection highlight if necessary
+        if (this.model.isSelected) {
+            ctx.strokeStyle = Wick.GUIElement.SELECTED_ITEM_BORDER_COLOR;
+            ctx.lineWidth = Wick.GUIElement.FRAME_HIGHLIGHT_STROKEWIDTH;
+            ctx.stroke();
+        }
 
         // Frame body edge
         if(edge) {
@@ -77,13 +89,6 @@ Wick.GUIElement.Frame = class extends Wick.GUIElement {
             this.cursor = 'grab';
         }
 
-        // Add selection highlight if necessary
-        if (this.model.isSelected) {
-            ctx.strokeStyle = Wick.GUIElement.SELECTED_ITEM_BORDER_COLOR;
-            ctx.lineWidth = Wick.GUIElement.FRAME_HIGHLIGHT_STROKEWIDTH;
-            ctx.stroke();
-        }
-
         // Frame scripts dot
         if(this.model.hasContentfulScripts) {
             ctx.fillStyle = Wick.GUIElement.FRAME_SCRIPT_DOT_COLOR;
@@ -108,26 +113,40 @@ Wick.GUIElement.Frame = class extends Wick.GUIElement {
             // Frame contentful dot
 
             ctx.fillStyle = Wick.GUIElement.FRAME_CONTENT_DOT_COLOR;
-            ctx.strokeStyle = Wick.GUIElement.FRAME_CONTENT_DOT_COLOR;
+            if(this.model.contentful) {
+                ctx.strokeStyle = Wick.GUIElement.FRAME_CONTENT_DOT_COLOR;
+            } else {
+                ctx.strokeStyle = '#aaa';
+            }
             ctx.lineWidth = Wick.GUIElement.FRAME_CONTENT_DOT_STROKE_WIDTH;
 
+            var r = Wick.GUIElement.FRAME_CONTENT_DOT_RADIUS;
+            if(this.project.frameSizeMode === 'small') {
+                r *= 0.75;
+            } else if(this.project.frameSizeMode === 'large') {
+                r *= 1.25;
+            }
+
             ctx.beginPath();
-            ctx.arc(this.gridCellWidth/2, this.gridCellHeight/2, Wick.GUIElement.FRAME_CONTENT_DOT_RADIUS, 0, 2 * Math.PI);
+            ctx.arc(this.gridCellWidth/2, this.gridCellHeight/2, r, 0, 2 * Math.PI);
             if(this.model.contentful) {
                 ctx.fill();
             }
             ctx.stroke();
         } else if (this.model.sound) {
-            // Frame sound waveform
+            // Sound waveform
 
-            var sound = this.model.sound;
             var framerate = this.model.project.framerate;
+            var sound = this.model.sound;
+            var waveform = sound.waveform;
 
-            var waveform = this.model.sound.waveform;
-            var maxWidth = this.model.length * this.gridCellWidth;
+            var soundLengthMS = sound.duration * 1000;
+            var frameLengthMS = (1 / framerate) * this.model.length * 1000;
 
-            var crop = (maxWidth / sound.duration) * this.gridCellWidth / framerate;
-            ctx.drawImage(waveform, 0, 0, crop, waveform.height/*/2*/, 0, 0, maxWidth, this.gridCellHeight);
+            var frameLengthPx = this.model.length * this.gridCellWidth;
+            var cropPx = (frameLengthMS / soundLengthMS) * 1200; // base waveform image size: 1200px
+
+            ctx.drawImage(waveform, 0, 0, cropPx, waveform.height, 0, 0, frameLengthPx, this.gridCellHeight);
         } else if (this.model.tweens.length > 0) {
             // Tweens
 
@@ -202,6 +221,8 @@ Wick.GUIElement.Frame = class extends Wick.GUIElement {
     _mouseOverFrameEdge () {
         var widthPx = this.model.length * this.gridCellWidth;
         var handlePx = Wick.GUIElement.FRAME_HANDLE_WIDTH;
+
+        if(this.project.frameSizeMode === 'small') handlePx *= 0.5;
 
         if(this.project._isDragging || !this.mouseInBounds()) {
             return null;

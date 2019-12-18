@@ -280,11 +280,11 @@ Wick.Selection = class extends Wick.Base {
             return 'tween';
           }
         } else if (selection.types.length === 1) {
-          if(selection.getSelectedObject() instanceof window.Wick.Frame) {
+          if(selection.getSelectedObjects()[0] instanceof window.Wick.Frame) {
             return 'multiframe';
-          } else if(selection.getSelectedObject() instanceof window.Wick.Layer) {
+          } else if(selection.getSelectedObjects()[0] instanceof window.Wick.Layer) {
             return 'multilayer';
-          } else if(selection.getSelectedObject() instanceof window.Wick.Tween) {
+          } else if(selection.getSelectedObjects()[0] instanceof window.Wick.Tween) {
             return 'multitween';
           }
         } else {
@@ -345,6 +345,7 @@ Wick.Selection = class extends Wick.Base {
 
     set x (x) {
         this.view.x = x;
+        this.project.tryToAutoCreateTween();
     }
 
     /**
@@ -357,6 +358,7 @@ Wick.Selection = class extends Wick.Base {
 
     set y (y) {
         this.view.y = y;
+        this.project.tryToAutoCreateTween();
     }
 
     /**
@@ -368,6 +370,7 @@ Wick.Selection = class extends Wick.Base {
     }
 
     set width (width) {
+        this.project.tryToAutoCreateTween();
         this.view.width = width;
     }
 
@@ -380,6 +383,7 @@ Wick.Selection = class extends Wick.Base {
     }
 
     set height (height) {
+        this.project.tryToAutoCreateTween();
         this.view.height = height;
     }
 
@@ -392,6 +396,7 @@ Wick.Selection = class extends Wick.Base {
     }
 
     set rotation (rotation) {
+        this.project.tryToAutoCreateTween();
         this.view.rotation = rotation;
     }
 
@@ -399,6 +404,7 @@ Wick.Selection = class extends Wick.Base {
      * Flips the selected obejcts horizontally.
      */
     flipHorizontally () {
+        this.project.tryToAutoCreateTween();
         this.view.flipHorizontally();
     }
 
@@ -406,6 +412,7 @@ Wick.Selection = class extends Wick.Base {
      * Flips the selected obejcts vertically.
      */
     flipVertically () {
+        this.project.tryToAutoCreateTween();
         this.view.flipVertically();
     }
 
@@ -554,6 +561,7 @@ Wick.Selection = class extends Wick.Base {
     }
 
     set opacity (opacity) {
+        this.project.tryToAutoCreateTween();
         this._setSingleAttribute('opacity', opacity);
     }
 

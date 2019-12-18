@@ -2,7 +2,7 @@
   "name": "wick-editor-react",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://alpha.wickeditor.com",
+  "homepage": "./",
   "dependencies": {
     "audiobuffer-to-wav": "^1.0.0",
     "base64-arraybuffer": "^0.2.0",
@@ -12,6 +12,7 @@
     "gh-pages": "^2.0.1",
     "localforage": "^1.7.3",
     "node-sass": "^4.9.4",
+    "query-string": "^6.9.0",
     "rc-slider": "^8.6.3",
     "react": "^16.5.2",
     "react-ace": "^6.2.0",
@@ -36,16 +37,26 @@
     "react-toastify": "^4.5.2",
     "react-tooltip": "^3.9.0",
     "reactstrap": "^6.5.0",
+    "url-parse": "^1.4.7",
+    "tinycolor2": "^1.4.1",
     "underscore": "^1.9.1"
   },
+  "main": "src/electron-starter.js",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build && cp CNAME_editor ./build/CNAME",
+    "build-engine": "cd engine; mkdir dist/; gulp; cp -a dist/. ../public/corelibs/wick-engine/",
+    "build-electron-macos": "electron-packager . 'Wick Editor' --ignore=node_modules --icon=public/icon.icns--platform=darwin --out build-electron --overwrite",
+    "build-electron-windows": "electron-packager . wickwindows --ignore=node_modules --icon=public/icon.ico --platform=win32 --out build-electron --overwrite",
+    "build-ios": "cp -r build/* build-ios/WebViewExample/local_html",
     "test": "react-scripts test",
     "predeploy": "npm run build",
     "prerelease-deploy": "npm run build; cp -r build/* ../wick-editor-prerelease/; cd ../wick-editor-prerelease; rm CNAME; echo 'test.wickeditor.com' > CNAME; git add .; git commit -m 'update prerelease build'; git push --force;",
     "deploy": "gh-pages -d build",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "electron": "electron .",
+    "electron-dev-macos": "ELECTRON_START_URL=http://localhost:3000 electron .",
+    "electron-dev-windows": "set ELECTRON_START_URL=http://localhost:3000 && electron ."
   },
   "eslintConfig": {
     "extends": "react-app"
@@ -55,5 +66,9 @@
     "not dead",
     "not ie <= 11",
     "not op_mini all"
-  ]
+  ],
+  "devDependencies": {
+    "electron": "^6.0.10",
+    "electron-packager": "^14.0.6"
+  }
 }

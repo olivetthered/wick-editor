@@ -39,6 +39,8 @@ Wick.Clip = class extends Wick.Tickable {
 
         this.cursor = 'default';
 
+        this._isClone = false;
+
         /* If objects are passed in, add them to the clip and reposition them */
         if(args.objects) {
             this.addObjects(args.objects);
@@ -76,10 +78,8 @@ Wick.Clip = class extends Wick.Tickable {
     get onScreen () {
         if(this.isRoot) {
             return true;
-        } else if (this.parent) {
-            return this.parent.onScreen;
-        } else {
-            return true;
+        } else if (this.parentFrame) {
+            return this.parentFrame.onScreen;
         }
     }
 
@@ -96,6 +96,14 @@ Wick.Clip = class extends Wick.Tickable {
      */
     get isFocus () {
         return this.project && this === this.project.focus;
+    }
+
+    /**
+     * Check if a Clip is a clone of another object.
+     * @type {boolean}
+     */
+    get isClone () {
+        return this._isClone;
     }
 
     /**
@@ -449,6 +457,7 @@ Wick.Clip = class extends Wick.Tickable {
         clone.identifier = null;
         this.parentFrame.addClip(clone);
         this._clones.push(clone);
+        clone._isClone = true;
         return clone;
     }
 
@@ -480,29 +489,24 @@ Wick.Clip = class extends Wick.Tickable {
     }
 
     _onInactive () {
-        return super._onInactive();
+        super._onInactive();
+        this._tickChildren();
     }
 
     _onActivated () {
-        var error = super._onActivated();
-        if(error) return error;
-
-        return this._tickChildren();
+        super._onActivated();
+        this._tickChildren();
     }
 
     _onActive () {
-        var error = super._onActive();
-        if(error) return error;
-
+        super._onActive();
         this.timeline.advance();
-        return this._tickChildren();
+        this._tickChildren();
     }
 
     _onDeactivated () {
-        var error = super._onDeactivated();
-        if(error) return error;
-
-        return this._tickChildren();
+        super._onDeactivated();
+        this._tickChildren();
     }
 
     _tickChildren () {

@@ -90,7 +90,7 @@ Wick.Tools.Cursor = class extends Wick.Tool {
             // Shift click: Deselect that item
             if(e.modifiers.shift) {
                 this._deselectItem(this.hitResult.item);
-                this._checkIfSelectionChanged();
+                this.fireEvent('canvasModified');
             }
         } else if (this.hitResult.item && this.hitResult.type === 'fill') {
             if(!e.modifiers.shift) {
@@ -99,13 +99,13 @@ Wick.Tools.Cursor = class extends Wick.Tool {
             }
             // Clicked an item: select that item
             this._selectItem(this.hitResult.item);
-            this._checkIfSelectionChanged();
+            this.fireEvent('canvasModified');
         } else {
             // Nothing was clicked, so clear the selection and start a new selection box
             // (don't clear the selection if shift is held, though)
             if(this._selection.numObjects > 0 && !e.modifiers.shift) {
                 this._clearSelection();
-                this._checkIfSelectionChanged();
+                this.fireEvent('canvasModified');
             }
 
             this.selectionBox.start(e.point);
@@ -121,7 +121,7 @@ Wick.Tools.Cursor = class extends Wick.Tool {
         } else if (selectedObject && (selectedObject instanceof Wick.Path) && (selectedObject.view.item instanceof paper.PointText)) {
             // Double clicked text, switch to text tool and edit the text item.
             // TODO
-        } else {
+        } else if (!selectedObject) {
             // Double clicked the canvas, leave the current focus.
             this.project.focusTimelineOfParentClip();
             this.fireEvent('canvasModified');
@@ -170,10 +170,11 @@ Wick.Tools.Cursor = class extends Wick.Tool {
             }).forEach(item => {
                 this._selectItem(item);
             });
-            this._checkIfSelectionChanged();
+            this.fireEvent('canvasModified');
         } else if (this._selection.numObjects > 0) {
             if(this.__isDragging) {
                 this.__isDragging = false;
+                this.project.tryToAutoCreateTween();
                 this._widget.finishTransformation();
                 this.fireEvent('canvasModified');
             }
@@ -348,17 +349,5 @@ Wick.Tools.Cursor = class extends Wick.Tool {
             console.log(item);
         }
         return Wick.ObjectCache.getObjectByUUID(uuid);
-    }
-
-    _checkIfSelectionChanged () {
-        var newSelectionData = this._createSelectionData();
-        if(newSelectionData !== this._lastSelection) {
-            this.fireEvent('canvasModified');
-        }
-        this._lastSelection = newSelectionData;
-    }
-
-    _createSelectionData () {
-        return this._selection.getSelectedObjectUUIDs().join('');
     }
 }

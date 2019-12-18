@@ -22,6 +22,10 @@ Wick.Tool = class {
         return 300;
     }
 
+    static get DOUBLE_CLICK_MAX_DISTANCE () {
+        return 20;
+    }
+
     /**
      * Creates a new Wick Tool.
      */
@@ -47,12 +51,14 @@ Wick.Tool = class {
         this.paperTool.onMouseDown = (e) => {
             if(this.doubleClickEnabled &&
                this._lastMousedownTimestamp !== null &&
-               e.timeStamp - this._lastMousedownTimestamp < Wick.Tool.DOUBLE_CLICK_TIME) {
+               e.timeStamp - this._lastMousedownTimestamp < Wick.Tool.DOUBLE_CLICK_TIME &&
+               e.point.subtract(this._lastMousedownPoint).length < Wick.Tool.DOUBLE_CLICK_MAX_DISTANCE) {
                 this.onDoubleClick(e);
             } else {
                 this.onMouseDown(e);
             }
             this._lastMousedownTimestamp = e.timeStamp;
+            this._lastMousedownPoint = e.point;
         }
 
         // Attach key events
@@ -197,28 +203,37 @@ Wick.Tool = class {
      *
      * @param {paper.Color} color - the color of the cursor
      * @param {number} size - the width of the cursor image to generate
+     * @param {boolean} transparent - if set to true, color is ignored
      */
-    createDynamicCursor (color, size) {
+    createDynamicCursor (color, size, transparent) {
+        var radius = size/2;
+
         var canvas = document.createElement("canvas");
-        canvas.width = 128;
-        canvas.height = 128;
+        canvas.width = radius * 2 + 2;
+        canvas.height = radius * 2 + 2;
         var context = canvas.getContext('2d');
 
         var centerX = canvas.width / 2;
         var centerY = canvas.height / 2;
-        var radius = size/2;
-
-        context.beginPath();
-        context.arc(centerX, centerY, radius+1, 0, 2 * Math.PI, false);
-        context.fillStyle = invert(color);
-        context.fill();
 
         context.beginPath();
         context.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
-        context.fillStyle = color;
-        context.fill();
+        context.strokeStyle = transparent ? 'black' : invert(color);
+        context.stroke();
 
-        return 'url(' + canvas.toDataURL() + ') 64 64,default';
+        if(transparent) {
+            context.beginPath();
+            context.arc(centerX, centerY, radius-1, 0, 2 * Math.PI, false);
+            context.strokeStyle = 'white';
+            context.stroke();
+        } else {
+            context.beginPath();
+            context.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
+            context.fillStyle = color;
+            context.fill();
+        }
+
+        return 'url(' + canvas.toDataURL() + ') '+(radius+1)+' '+(radius+1)+',default';
     }
 
     /**
@@ -244,13 +259,12 @@ Wick.Tool = class {
     addPathToProject (path) {
         // Automatically add a frame is there isn't one
         if(!this.project.activeFrame) {
-            var playheadPosition = this.project.activeTimeline.playheadPosition;
-            var newFrame = new Wick.Frame({start: playheadPosition});
-            this.project.activeLayer.addFrame(newFrame);
+            this.project.insertBlankFrame();
             this.project.view.render();
         }
 
-        this.paper.project.activeLayer.addChild(path);
+        if(path)
+            this.paper.project.activeLayer.addChild(path);
     }
 }
 

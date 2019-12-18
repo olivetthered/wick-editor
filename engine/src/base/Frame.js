@@ -102,7 +102,7 @@ Wick.Frame = class extends Wick.Tickable {
      */
     get onScreen () {
         if(!this.parent) return true;
-        return this.inPosition(this.parentTimeline.playheadPosition);
+        return this.inPosition(this.parentTimeline.playheadPosition) && this.parentClip.onScreen;
     }
 
     /**
@@ -220,7 +220,7 @@ Wick.Frame = class extends Wick.Tickable {
      * @type {number}
      */
     get soundEndMS () {
-        return (1000/this.project.framerate) * (this.end - 1);
+        return (1000/this.project.framerate) * this.end;
     }
 
     /**
@@ -515,7 +515,7 @@ Wick.Frame = class extends Wick.Tickable {
     }
 
     /**
-     * Cut this frame in half using the playhead position.
+     * Cut this frame in half using the parent timeline's playhead position.
      */
     cut () {
         // Can't cut a frame that doesn't beolong to a timeline + layer
@@ -543,15 +543,43 @@ Wick.Frame = class extends Wick.Tickable {
     }
 
     /**
-     * Copy this frame and paste it in front of itself.
+     * Insert a blank frame into this frame using the parent timeline's playhead position.
+     * @returns {Wick.Frame} the newly added blank frame.
      */
-    copyForward () {
-        if(!this.parentLayer) return;
-        var copy = this.copy();
-        copy.identifier = null;
-        copy.start += this.length;
-        copy.end += this.length;
-        this.parentLayer.addFrame(copy);
+    insertBlankFrame () {
+        var playheadPosition = this.parentTimeline.playheadPosition;
+
+        // Cut this frame
+        this.cut();
+
+        // Add a blank frame where this frame was cut
+        var blankFrame = new Wick.Frame({start: playheadPosition});
+        this.parentLayer.addFrame(blankFrame);
+        return blankFrame;
+    }
+
+    /**
+     * Extend this frame by one and push all frames right of this frame to the right.
+     */
+    extendAndPushOtherFrames () {
+        this.parentLayer.getFramesInRange(this.end + 1, Infinity).forEach(frame => {
+            frame.start += 1;
+            frame.end += 1;
+        });
+        this.end += 1;
+    }
+
+    /**
+     * Shrink this frame by one and pull all frames left of this frame to the left.
+     */
+    shrinkAndPullOtherFrames () {
+        if(this.length === 1) return;
+
+        this.parentLayer.getFramesInRange(this.end + 1, Infinity).forEach(frame => {
+            frame.start -= 1;
+            frame.end -= 1;
+        });
+        this.end -= 1;
     }
 
     /**
@@ -601,41 +629,31 @@ Wick.Frame = class extends Wick.Tickable {
     }
 
     _onInactive () {
-        return super._onInactive();
+        super._onInactive();
+        this._tickChildren();
     }
 
     _onActivated () {
-        var error = super._onActivated();
-        if(error) return error;
-
+        super._onActivated();
         this.playSound();
-
-        return this._tickChildren();
+        this._tickChildren();
     }
 
     _onActive () {
-        var error = super._onActive();
-        if(error) return error;
-
-        return this._tickChildren();
+        super._onActive();
+        this._tickChildren();
     }
 
     _onDeactivated () {
-        var error = super._onDeactivated();
-        if(error) return error;
-
+        super._onDeactivated();
         this.stopSound();
-
-        return this._tickChildren();
+        this._tickChildren();
     }
 
     _tickChildren () {
-        var childError = null;
         this.clips.forEach(clip => {
-            if(childError) return;
-            childError = clip.tick();
+            clip.tick();
         });
-        return childError;
     }
 
     _attachChildClipReferences () {

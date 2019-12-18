@@ -43,6 +43,8 @@ Wick.GUIElement.Project = class extends Wick.GUIElement {
         this._scrollX = 0;
         this._scrollY = 0;
 
+        this._popupMenu = null;
+
         this._onProjectModified = () => {};
         this._onProjectSoftModified = () => {};
     }
@@ -80,11 +82,20 @@ Wick.GUIElement.Project = class extends Wick.GUIElement {
                 this._onMouseDown(e);
             }, false);
 
+            // Auto-close popup menu if there is a click off-canvas
+            document.addEventListener('mousedown', e => {
+                if(e.touches) return;
+                if(e.target !== this._canvas) {
+                    this.closePopupMenu();
+                    this.draw();
+                }
+            }, false);
+
             // Scroll events
             $(this._canvas).on('mousewheel', this._onMouseWheel.bind(this));
 
             // Touch events
-            document.addEventListener('touchstart', e => {
+            this._canvas.addEventListener('touchstart', e => {
                 e.buttons = 0;
                 e.clientX = e.touches[0].clientX;
                 e.clientY = e.touches[0].clientY;
@@ -149,6 +160,11 @@ Wick.GUIElement.Project = class extends Wick.GUIElement {
         // Draw the entire GUI
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.model.activeTimeline.guiElement.draw();
+
+        // Draw current popup menu
+        if(this._popupMenu) {
+            this._popupMenu.draw();
+        }
 
         // Draw tooltips
         this._mouseHoverTargets.forEach(target => {
@@ -226,7 +242,38 @@ Wick.GUIElement.Project = class extends Wick.GUIElement {
         return this.model.activeTimeline.layers.length * this.gridCellHeight + this.gridCellHeight * 2;
     }
 
-   /**
+    /**
+     * Open a popup menu
+     * @param {Wick.GUIElement.PopupMenu} popupMenu - the PopupMenu to open
+     */
+    openPopupMenu (popupMenu) {
+        this._popupMenu = popupMenu;
+        this.draw();
+    }
+
+    /**
+     * Close the current popup menu
+     */
+    closePopupMenu () {
+        this._popupMenu = null;
+        this.draw();
+    }
+
+    /**
+     * String representation of the current frame size, can be "small", "normal", or "large".
+     * @type {string}
+     */
+    get frameSizeMode () {
+        if(Wick.GUIElement.GRID_DEFAULT_CELL_WIDTH === Wick.GUIElement.GRID_SMALL_CELL_WIDTH) {
+            return 'small';
+        } else if(Wick.GUIElement.GRID_DEFAULT_CELL_WIDTH === Wick.GUIElement.GRID_NORMAL_CELL_WIDTH) {
+            return 'normal'
+        } else if(Wick.GUIElement.GRID_DEFAULT_CELL_WIDTH === Wick.GUIElement.GRID_LARGE_CELL_WIDTH) {
+            return 'large';
+        }
+    }
+
+    /**
      * Drop an asset onto the timeline.
      * @param {string} uuid - The UUID of the desired asset.
      * @param {number} x - The x location of the image after creation in relation to the window.
@@ -254,6 +301,31 @@ Wick.GUIElement.Project = class extends Wick.GUIElement {
             } else {
                 frame.removeSound();
             }
+        }
+    }
+
+    /**
+     * Auto scrolls the timeline if the playhead is considered off-screen.
+     * This is built specifically for moving the playead with hotkeys.
+     */
+    checkForPlayheadAutoscroll () {
+        var scrollWidth = this.canvas.width;
+        scrollWidth -= Wick.GUIElement.LAYERS_CONTAINER_WIDTH;
+        scrollWidth -= Wick.GUIElement.SCROLLBAR_SIZE;
+        scrollWidth -= this.gridCellWidth;
+
+        var scrollMin = this.scrollX;
+        var scrollMax = this.scrollX + scrollWidth;
+
+        var playheadPosition = this.model.activeTimeline.playheadPosition;
+        var playheadX = (playheadPosition - 1) * this.gridCellWidth;
+
+        if(playheadX < scrollMin) {
+            this.scrollX = playheadX;
+            this.draw();
+        } if (playheadX > scrollMax) {
+            this.scrollX = playheadX - scrollWidth;
+            this.draw();
         }
     }
 
@@ -308,6 +380,7 @@ Wick.GUIElement.Project = class extends Wick.GUIElement {
     }
 
     _onMouseDown (e) {
+        this.closePopupMenu();
         this.canvasClicked = true;
         this._clickXY = {x: e.clientX, y: e.clientY};
 
@@ -326,9 +399,9 @@ Wick.GUIElement.Project = class extends Wick.GUIElement {
     _onMouseUp (e) {
         // Call mouse event functions on the elements interacted with
         var target = this._getTopMouseTarget();
-        if(this._isDragging) {
+        if(this.canvasClicked && this._isDragging) {
             target && target.onMouseUp(e);
-        } else if (this._lastClickedElem === target) {
+        } else if (this.canvasClicked && this._lastClickedElem === target) {
             target && target.onMouseUp(e);
         }
 

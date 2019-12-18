@@ -32,6 +32,8 @@ import iconEraser from 'resources/toolbar-icons/eraser.svg';
 import iconText from 'resources/toolbar-icons/text.svg';
 import iconFillBucket from 'resources/toolbar-icons/fillbucket.svg';
 import iconPathCursor from 'resources/toolbar-icons/pathcursor.svg';
+import iconSpectrum from 'resources/toolbar-icons/spectrum.svg';
+import iconSwatches from 'resources/toolbar-icons/swatches.svg';
 
 import iconDelete from 'resources/toolbar-icons/delete.svg';
 import iconUndo from 'resources/toolbar-icons/undo.svg';
@@ -46,11 +48,11 @@ import iconZoomIn from 'resources/tool-icons/zoomin.svg';
 import iconZoomOut from 'resources/tool-icons/zoomout.svg';
 import iconCurve from 'resources/tool-icons/curve.svg';
 import iconPoint from 'resources/tool-icons/point.svg';
-import iconBrushPressure from 'resources/tool-icons/brushpressure.svg';
+import iconBrushPressure from 'resources/tool-icons/brushpressure.png';
+import iconRelativeBrushSize from 'resources/tool-icons/relativebrush.png';
 
 // Actions
 import iconAction from 'resources/tool-icons/action.svg';
-import iconUpload from 'resources/tool-icons/upload.svg';
 import iconDuplicate from 'resources/tool-icons/duplicate.svg';
 import iconFlipHorizontal from 'resources/tool-icons/flipHorizontal.svg';
 import iconFlipVertical from 'resources/tool-icons/flipVertical.svg';
@@ -66,6 +68,7 @@ import iconBreakApart from 'resources/tool-icons/breakApart.svg';
 import iconClose from 'resources/tool-icons/close.svg';
 import iconRecenter from 'resources/tool-icons/recenter.svg';
 import iconAdd from 'resources/asset-library-icons/add.svg';
+import iconUpload from 'resources/asset-library-icons/upload.svg';
 import iconSubtract from 'resources/tool-icons/subtract.svg';
 import iconIntersect from 'resources/tool-icons/intersect.svg';
 import iconUnite from 'resources/tool-icons/unite.svg';
@@ -76,9 +79,11 @@ import iconImage from 'resources/tool-icons/image.svg';
 import iconGear from 'resources/tool-icons/settings.svg';
 import iconGroup from 'resources/tool-icons/group.svg';
 import iconSearch from 'resources/tool-icons/search.svg';
+import iconClip from 'resources/asset-library-icons/clip.svg';
 
 // Rows
 import iconBrushSize from "resources/inspector-icons/property-icons/brushsize.svg";
+import iconGapFillAmount from "resources/inspector-icons/property-icons/gapfillamount.png";
 import iconBrushSmoothness from "resources/inspector-icons/property-icons/brushsmoothness.svg";
 import iconCornerRadius from "resources/inspector-icons/property-icons/cornerradius.svg";
 import iconEase from "resources/inspector-icons/property-icons/ease.svg";
@@ -102,24 +107,24 @@ import iconStrokeColor from "resources/inspector-icons/property-icons/strokecolo
 import iconStrokeWidth from "resources/tool-icons/strokewidth.svg";
 import iconVolume from "resources/inspector-icons/property-icons/volume.svg";
 import iconUnknown from 'resources/inspector-icons/selection-icons/unknown.svg';
-import iconTween from 'resources/tool-icons/tween.svg'; 
-import iconFont from 'resources/tool-icons/font.svg'; 
+import iconTween from 'resources/tool-icons/tween.svg';
+import iconFont from 'resources/tool-icons/font.svg';
 
 // Interface
 import iconCloseModal from 'resources/interface-images/close.svg';
 import iconAutosave from 'resources/interface-images/accept.svg';
-import iconCancel from 'resources/interface-images/cancel.svg'; 
+import iconCancel from 'resources/interface-images/cancel.svg';
 import iconWarning from 'resources/interface-images/warning.svg';
 import iconCheck from 'resources/interface-images/check.svg';
-import iconCircle from 'resources/tool-icons/circle.svg'; 
-import iconCloseTab from 'resources/tool-icons/closetab.svg'; 
+import iconCircle from 'resources/tool-icons/circle.svg';
+import iconCloseTab from 'resources/tool-icons/closetab.svg';
 import iconWarningDelete from 'resources/interface-images/warning_delete.svg';
 
 // Timeline
-import iconLock from 'resources/tool-icons/lock.svg'; 
-import iconUnlock from 'resources/tool-icons/unlock.svg'; 
-import iconHidden from 'resources/tool-icons/hidden.svg'; 
-import iconShown from 'resources/tool-icons/shown.svg'; 
+import iconLock from 'resources/tool-icons/lock.svg';
+import iconUnlock from 'resources/tool-icons/unlock.svg';
+import iconHidden from 'resources/tool-icons/hidden.svg';
+import iconShown from 'resources/tool-icons/shown.svg';
 import iconCopyForward from 'resources/tool-icons/copyForward.svg';
 import iconSplit from 'resources/tool-icons/split.svg';
 import iconLayerTween from 'resources/tool-icons/layerTween.svg';
@@ -144,19 +149,20 @@ class ToolIcon extends Component {
       "zoomin":iconZoomIn,
       "zoomout":iconZoomOut,
       "fillbucket": iconFillBucket,
-      "pathcursor": iconPathCursor, 
+      "pathcursor": iconPathCursor,
       "copy": iconCopy,
       "paste": iconPaste,
       "text": iconText,
       "image": iconImage,
       "imageAsset": iconImage,
+      "clip": iconClip,
       "leaveUp": iconLeaveUp,
       "upload": iconUpload,
       "action": iconAction,
       "breakApart": iconBreakApart,
-      "brushsize": iconBrushSize,
       "brushsmoothness": iconBrushSmoothness,
       "brushpressure": iconBrushPressure,
+      "brushrelativesize": iconRelativeBrushSize,
       "cornerradius": iconCornerRadius,
       "close": iconClose,
       "delete": iconDelete,
@@ -172,7 +178,8 @@ class ToolIcon extends Component {
       "framerate": iconFrameRate,
       "flipHorizontal": iconFlipHorizontal,
       "flipVertical": iconFlipVertical,
-      "group": iconGroup,
+      "gapfillamount": iconGapFillAmount,
+      "brushsize": iconBrushSize,
       "multipleobjects": iconMultipleObjects,
       "name": iconName,
       "opacity": iconOpacity,
@@ -200,27 +207,30 @@ class ToolIcon extends Component {
       "script": iconScript,
       "volume": iconVolume,
       "closemodal": iconCloseModal,
-      "autosave": iconAutosave, 
+      "autosave": iconAutosave,
       "warning": iconWarning,
       "cancel": iconCancel,
       "check": iconCheck,
-      "add": iconAdd, 
-      "circle": iconCircle, 
+      "add": iconAdd,
+      "circle": iconCircle,
       "closetab": iconCloseTab,
-      "warningdelete": iconWarningDelete, 
-      "tween": iconTween, 
+      "warningdelete": iconWarningDelete,
+      "tween": iconTween,
       "font": iconFont,
       "moreactions": iconMoreActions,
       "unite": iconUnite,
       "subtract": iconSubtract,
-      "intersect": iconIntersect, 
+      "intersect": iconIntersect,
       "lock": iconLock,
       "unlock": iconUnlock,
       "hidden": iconHidden,
-      "shown": iconShown, 
+      "shown": iconShown,
       "copyForward": iconCopyForward,
-      "split": iconSplit, 
+      "split": iconSplit,
       "layerTween": iconLayerTween,
+      "spectrum": iconSpectrum,
+      "swatches": iconSwatches,
+      "group": iconGroup,
     }
   }
 

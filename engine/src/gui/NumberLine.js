@@ -35,6 +35,10 @@ Wick.GUIElement.NumberLine = class extends Wick.GUIElement {
 
         var ctx = this.ctx;
 
+        // Shift over 2px for some breathing room
+        ctx.save();
+        ctx.translate(2,0);
+
         // Save where the mouse is if the user wants to drag the playhead around
         this.mousePlayheadPosition = Math.floor(this.localMouse.x / this.gridCellWidth) + 1;
 
@@ -44,7 +48,7 @@ Wick.GUIElement.NumberLine = class extends Wick.GUIElement {
         // Draw background cover
         ctx.fillStyle = Wick.GUIElement.TIMELINE_BACKGROUND_COLOR;
         ctx.beginPath();
-        ctx.rect(this.project.scrollX, 0, width, height);
+        ctx.rect(this.project.scrollX-2, 0, width, height);
         ctx.fill();
 
         // Draw number line cells
@@ -64,26 +68,30 @@ Wick.GUIElement.NumberLine = class extends Wick.GUIElement {
 
         // Draw playhead
         this.playhead.draw();
+
+        ctx.restore();
     }
 
     // Helper function for drawing each cell of the numberline (draws the border and the number)
     _drawCell (i) {
         var ctx = this.ctx;
 
-        var highlight = (i%5 === 4);
+        var highlight = i===0 || (i%5 === 4);
 
         // Draw cell number
-        var fontSize = (i>=100) ? 13 : 16;
-        var fontFamily = Wick.GUIElement.NUMBER_LINE_NUMBERS_FONT_FAMILY;
-        ctx.font = fontSize + "px " + fontFamily;
-        if(highlight) {
-            ctx.fillStyle = Wick.GUIElement.NUMBER_LINE_NUMBERS_HIGHLIGHT_COLOR;
-        } else {
-            ctx.fillStyle = Wick.GUIElement.NUMBER_LINE_NUMBERS_COMMON_COLOR;
+        if(this.project.frameSizeMode !== 'small' || highlight) {
+            var fontSize = (i>=99) ? 13 : 16;
+            var fontFamily = Wick.GUIElement.NUMBER_LINE_NUMBERS_FONT_FAMILY;
+            ctx.font = fontSize + "px " + fontFamily;
+            if(highlight) {
+                ctx.fillStyle = Wick.GUIElement.NUMBER_LINE_NUMBERS_HIGHLIGHT_COLOR;
+            } else {
+                ctx.fillStyle = Wick.GUIElement.NUMBER_LINE_NUMBERS_COMMON_COLOR;
+            }
+            var textContent = ""+(i+1);
+            var textWidth = ctx.measureText(textContent).width;
+            ctx.fillText(textContent, (i * this.gridCellWidth) + (this.gridCellWidth / 2) - (textWidth / 2), Wick.GUIElement.NUMBER_LINE_HEIGHT - 5);
         }
-        var textContent = ""+(i+1);
-        var textWidth = ctx.measureText(textContent).width;
-        ctx.fillText(textContent, (i * this.gridCellWidth) + (this.gridCellWidth / 2) - (textWidth / 2), Wick.GUIElement.NUMBER_LINE_HEIGHT - 5);
 
         // Draw cell wall
         ctx.lineWidth = Wick.GUIElement.FRAMES_CONTAINER_VERTICAL_GRID_STROKE_WIDTH;

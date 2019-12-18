@@ -28,8 +28,7 @@ import { DragDropContext } from "react-dnd";
 import 'react-reflex/styles.css'
 import { ReflexContainer, ReflexSplitter, ReflexElement } from 'react-reflex'
 import { throttle } from 'underscore';
-import { GlobalHotKeys } from 'react-hotkeys';
-import Dropzone from 'react-dropzone';
+import { GlobalHotKeys} from 'react-hotkeys';
 import localForage from 'localforage';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -52,9 +51,14 @@ import Toolbox from './Panels/Toolbox/Toolbox';
 import AssetLibrary from './Panels/AssetLibrary/AssetLibrary';
 import PopOutCodeEditor from './PopOuts/PopOutCodeEditor/PopOutCodeEditor';
 
+var classNames = require('classnames');
+
 class Editor extends EditorCore {
   constructor () {
     super();
+
+    // Set path for engine dependencies
+    window.Wick.resourcepath = 'corelibs/wick-engine/';
 
     // "Live" editor states
     this.project = null;
@@ -69,7 +73,7 @@ class Editor extends EditorCore {
       codeEditorOpen: false,
       scriptToEdit: "default",
       showCanvasActions: false,
-      codeErrors: [],
+      showCodeErrors: false,
       inspectorSize: 250,
       timelineSize: 175,
       assetLibrarySize: 150,
@@ -84,7 +88,21 @@ class Editor extends EditorCore {
       renderProgress: 0,
       renderType: "default",
       renderStatusMessage: "",
+      customHotKeys: {},
+      colorPickerType: "swatches",
+      lastColorsUsed: ["#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF", "#FFFFFF"]
     };
+
+    // Catch all errors that happen in the editor.
+    window.onerror = function(e, url, line) {
+      // TODO: Handle this error however we want (send it somewhere, display it to user, etc)
+      console.error(e);
+      console.error('error logged: ');
+      console.log(e)
+      console.log(url)
+      console.log(line);
+      return true;
+    }
 
     // Set up error.
     this.error = null;
@@ -100,6 +118,14 @@ class Editor extends EditorCore {
 
     // Init Script Info
     this.scriptInfoInterface = new ScriptInfoInterface();
+
+    // Wick file input
+    this.openFileRef = React.createRef();
+    this.importAssetRef = React.createRef();
+
+    // Set up color picker
+    this.maxLastColors = 8;
+    this._onEyedropperPickedColor = (color) => {};
 
     // Resizable panels
     this.RESIZE_THROTTLE_AMOUNT_MS = 100;
@@ -131,7 +157,28 @@ class Editor extends EditorCore {
       name        : 'WickEditor',
       description : 'Live Data storage of the Wick Editor app.'
     });
+
     this.autoSaveKey = "wickProjectAutosave1-0-11";
+    this.customHotKeysKey = "wickEditorcustomHotKeys";
+    this.colorPickerTypeKey = "wickEditorColorPickerType";
+
+    // Set up custom hotkeys if they exist.
+    localForage.getItem(this.customHotKeysKey).then(
+      (customHotKeys) => {
+        if (!customHotKeys) customHotKeys = {}; // Ensure we never send a null hotkey setting.
+        this.hotKeyInterface.setCustomHotKeys(customHotKeys);
+      }
+    );
+
+    // Set color picker state.
+    localForage.getItem(this.colorPickerTypeKey).then(
+      (colorPickerType) => {
+        if (!colorPickerType) colorPickerType = "swatches";
+        this.setState({
+          colorPickerType: colorPickerType,
+        });
+      }
+    );
 
     // Setup the initial project state
     this.setState({
@@ -156,11 +203,12 @@ class Editor extends EditorCore {
   componentDidMount = () => {
     this.hidePreloader();
     this.onWindowResize();
-    this.showAutosavedProjects();
+    if(!this.tryToParseProjectURL()) {
+      this.showAutosavedProjects();
+    }
   }
 
   componentDidUpdate = (prevProps, prevState) => {
-
     if(this.state.previewPlaying && !prevState.previewPlaying) {
       this.project.view.canvas.focus();
       this.project.play({
@@ -193,7 +241,7 @@ class Editor extends EditorCore {
         preloader.style.display = 'none';
       }, 500);
       this.project.view.render()
-    }, 2000);
+    }, 2000); // Wait two seconds to allow editor to set up... TODO: Should connect this to load events.
   }
 
   showWaitOverlay = (message) => {
@@ -218,6 +266,17 @@ class Editor extends EditorCore {
 
   }
 
+  /**
+   * Updates the color picker type within the editor state.
+   * @param {String} type String representing the type of the color picker, can be swatches, spectrum, or gradient (TODO).
+   */
+  changeColorPickerType = (type) => {
+    localForage.setItem(this.colorPickerTypeKey, type);
+    this.setState({
+      colorPickerType: type,
+    });
+  }
+
   onWindowResize = () => {
     // Ensure that all elements resize on window resize.
     this.resizeProps.onResize();
@@ -226,6 +285,9 @@ class Editor extends EditorCore {
     this.setState({
       codeEditorWindowProperties: this.getDefaultCodeEditorProperties(),
     });
+
+    // re-render project to avoid incorrect pan
+    this.project.view.render();
   }
 
   getDefaultCodeEditorProperties = () => {
@@ -241,6 +303,25 @@ class Editor extends EditorCore {
         minHeight: 300,
       }
     );
+  }
+
+  updateLastColors = (color) => {
+    let newArray = this.state.lastColorsUsed.concat([]); // make a deep copy.
+
+    // Remove a color from the array. If the new color is in the array, remove it.
+    let index = newArray.indexOf(color);
+    if (index > -1) {
+      newArray.splice(index, 1);
+    } else {
+      newArray.pop();
+    }
+
+    // Add the new color to the front of the array.
+    newArray.unshift(color);
+
+    this.setState({
+      lastColorsUsed: newArray,
+    });
   }
 
   onResize = (e) => {
@@ -276,20 +357,11 @@ class Editor extends EditorCore {
   }
 
   /**
-   * Removes all code errors.
-   */
-  removeCodeErrors = () => {
-    this.setState({
-      codeErrors: [],
-    });
-  }
-
-  /**
    * An event called when a minor code update happens as defined by the code editor.
    */
   onMinorScriptUpdate = () => {
-    if (this.state.codeErrors.length > 0) {
-      this.removeCodeErrors();
+    if (this.project.error) {
+      this.clearCodeEditorError();
     }
   }
 
@@ -387,7 +459,7 @@ class Editor extends EditorCore {
    * @param {boolean} state - Optional. True will open the code editor, false will close.
    */
   toggleCodeEditor = (state) => {
-    if (state === undefined || (typeof variable !== "boolean")) {
+    if (state === undefined || (typeof state !== "boolean")) {
       state = !this.state.codeEditorOpen;
     }
 
@@ -540,6 +612,58 @@ class Editor extends EditorCore {
     });
   }
 
+  // Any elements that are in hotkeys 2 will overwrite items by same name in hotkeys1.
+  combineHotKeys = (hotkeys1, hotkeys2) => {
+    // Try to combine all keys
+    let newHotKeys = {...hotkeys1, ...hotkeys2};
+
+    let keys1 = Object.keys(hotkeys1);
+    let keys2 = Object.keys(hotkeys2);
+
+    let similarKeys = keys2.filter(key => keys1.indexOf(key) > -1);
+
+    similarKeys.forEach(key => {
+      let combinedKey = {...hotkeys1[key], ...hotkeys2[key]};
+      newHotKeys[key] = combinedKey;
+    });
+
+    return newHotKeys;
+  }
+
+  convertHotkeyArray = (hotkeys) => {
+    let keyObj = {};
+
+    hotkeys.forEach(key => {
+      if (keyObj[key.actionName]) {
+        keyObj[key.actionName][key.index] = key.sequence;
+      } else {
+        keyObj[key.actionName] = {}
+        keyObj[key.actionName][key.index] = key.sequence;
+      }
+    });
+
+    return keyObj;
+  }
+
+  // Expects array of hotkey objects
+  addCustomHotKeys = (newHotKeys) => {
+    let combined = this.combineHotKeys(this.state.customHotKeys, this.convertHotkeyArray(newHotKeys));
+
+    this.syncHotKeys(combined);
+  }
+
+  syncHotKeys = (hotkeys) => {
+    this.hotKeyInterface.setCustomHotKeys(hotkeys);
+    localForage.setItem(this.customHotKeysKey, hotkeys);
+    this.setState({
+      customHotKeys: hotkeys
+    });
+  }
+
+  resetCustomHotKeys = () => {
+    this.syncHotKeys({});
+  }
+
   /**
    * A flag to prevent "double state changes" where an action tries to happen while another is still processing.
    * Set this to true before doing something asynchronous that will take a long time, and set it back to false when done.
@@ -552,20 +676,62 @@ class Editor extends EditorCore {
     this._processingAction = processingAction;
   }
 
+  handleWickFileLoad = (e) => {
+    var file = e.target.files[0];
+    if (!file) {
+      console.warn('handleWickFileLoad: no files recieved');
+      return;
+    }
+    this.importProjectAsWickFile(file);
+  }
+
+  handleAssetFileImport = (e) => {
+    this.createAssets(e.target.files, []);
+  }
+
+  openProjectFileDialog = () => {
+    this.openFileRef.current.click();
+  }
+
+  openImportAssetFileDialog = () => {
+    this.importAssetRef.current.click();
+  }
+
+  /**
+   * Returns the appropriate keymap based on the state of the editor.
+   * @param fullKeyMap {Bool} If true, returns the full keymap for the editor. Otherwise, the appropriate keymap is returned.
+   * @returns {Object} Keymap listed as actionName : Object { 0 : sequence, 1 : sequence }
+   */
+  getKeyMap = (fullKeyMap) => {
+    if (this.state.previewPlaying && !fullKeyMap) {
+      return this.hotKeyInterface.getEssentialKeyMap(this.state.customHotKeys)
+    } else {
+      return this.hotKeyInterface.getKeyMap(this.state.customHotKeys)
+    }
+  }
+
+  /**
+   * Returns the appropriate key handlers based on the state of the editor.
+   * @param fullKeyHandlers {Bool} If true, returns all key handlers for the editor. Otherwise, the appropriate keyhandlers returned.
+   */
+  getKeyHandlers = (fullKeyHandlers) => {
+    if (this.state.previewPlaying && !fullKeyHandlers) {
+      return this.hotKeyInterface.getEssentialKeyHandlers(this.state.customHotKeys)
+    } else {
+      return this.hotKeyInterface.getHandlers(this.state.customHotKeys)
+    }
+  }
+
   render = () => {
     // Create some references to the project and editor to make debugging in the console easier:
     window.project = this.project;
     window.editor = this;
 
+    let renderMobile = window.innerWidth < 640;
+
     return (
-    <Dropzone
-      accept={window.Wick.FileAsset.getValidExtensions()}
-      onDrop={(accepted, rejected) => this.createAssets(accepted, rejected)}
-      disableClick
-    >
-    {/*TODO: Check the onClick event */}
-      {({getRootProps, getInputProps, open}) => (
-        <div {...getRootProps()}>
+      <div>
+        <div>
           <ToastContainer
            transition={Slide}
             position="top-right"
@@ -578,11 +744,26 @@ class Editor extends EditorCore {
             draggable
             pauseOnHover
           />
-          <input {...getInputProps()} />
             <GlobalHotKeys
-              keyMap={this.state.previewPlaying ? this.hotKeyInterface.getEssentialKeyMap() : this.hotKeyInterface.getKeyMap()}
-              handlers={this.state.previewPlaying ? this.hotKeyInterface.getEssentialKeyHandlers() : this.hotKeyInterface.getHandlers()}/>
+              allowChanges={true}
+              keyMap={this.getKeyMap()}
+              handlers={this.getKeyHandlers()}/>
               <div id="editor">
+                <input
+                  type='file'
+                  accept={window.Wick.FileAsset.getValidExtensions().join(', ')}
+                  style={{display: 'none'}}
+                  ref={this.importAssetRef}
+                  onChange={this.handleAssetFileImport}
+                  multiple="multiple"
+                />
+                <input
+                  type='file'
+                  accept='.zip, .wick'
+                  style={{display: 'none'}}
+                  ref={this.openFileRef}
+                  onChange={this.handleWickFileLoad}
+                />
                 <div id="menu-bar-container">
                   <ModalHandler
                     activeModalName={this.state.activeModalName}
@@ -596,18 +777,29 @@ class Editor extends EditorCore {
                     exportProjectAsGif={this.exportProjectAsAnimatedGIF}
                     exportProjectAsVideo={this.exportProjectAsVideo}
                     exportProjectAsStandaloneZip={this.exportProjectAsStandaloneZip}
+                    exportProjectAsStandaloneHTML={this.exportProjectAsStandaloneHTML}
                     warningModalInfo={this.state.warningModalInfo}
                     loadAutosavedProject={this.loadAutosavedProject}
                     clearAutoSavedProject={this.clearAutoSavedProject}
                     renderProgress={this.state.renderProgress}
                     renderStatusMessage={this.state.renderStatusMessage}
                     renderType={this.state.renderType}
+                    addCustomHotKeys={this.addCustomHotKeys}
+                    resetCustomHotKeys={this.resetCustomHotKeys}
+                    customHotKeys={this.state.customHotKeys}
+                    keyMap={this.getKeyMap()}
+                    importFileAsAsset={this.importFileAsAsset}
+                    colorPickerType={this.state.colorPickerType}
+                    changeColorPickerType={this.changeColorPickerType}
+                    updateLastColors={this.updateLastColors}
+                    lastColorsUsed={this.state.lastColorsUsed}
                   />
                   {/* Header */}
                   <DockedPanel showOverlay={this.state.previewPlaying}>
                     <MenuBar
                       openModal={this.openModal}
                       projectName={this.project.name}
+                      openProjectFileDialog={this.openProjectFileDialog}
                       openNewProjectConfirmation={this.openNewProjectConfirmation}
                       exportProjectAsWickFile={this.exportProjectAsWickFile}
                       importProjectAsWickFile={this.importProjectAsWickFile}
@@ -617,7 +809,7 @@ class Editor extends EditorCore {
                   </DockedPanel>
                 </div>
                 <div id="editor-body">
-                  <div id="flexible-container">
+                  <div className={classNames({"mobile-editor-body": renderMobile})} id="flexible-container">
                     {/*App*/}
                     <ReflexContainer windowResizeAware={true} orientation="vertical">
                       {/* Middle Panel */}
@@ -637,6 +829,10 @@ class Editor extends EditorCore {
                               getToolSettingRestrictions={this.getToolSettingRestrictions}
                               showCanvasActions={this.state.showCanvasActions}
                               toggleCanvasActions={this.toggleCanvasActions}
+                              colorPickerType={this.state.colorPickerType}
+                              changeColorPickerType={this.changeColorPickerType}
+                              updateLastColors={this.updateLastColors}
+                              lastColorsUsed={this.state.lastColorsUsed}
                             />
                           </DockedPanel>
                         </div>
@@ -653,6 +849,7 @@ class Editor extends EditorCore {
                                   previewPlaying={this.state.previewPlaying}
                                   createImageFromAsset={this.createImageFromAsset}
                                   toast={this.toast}
+                                  onEyedropperPickedColor={this.onEyedropperPickedColor}
                                   onRef={ref => this.canvasComponent = ref}
                                 />
                                 <CanvasTransforms
@@ -694,10 +891,13 @@ class Editor extends EditorCore {
                         </div>
                       </ReflexElement>
 
-                      <ReflexSplitter {...this.resizeProps}/>
+                      {!renderMobile && <ReflexSplitter {...this.resizeProps}/>}
 
                       {/* Right Sidebar */}
-                      <ReflexElement
+                      {
+                        !renderMobile &&
+
+                        <ReflexElement
                         size={250}
                         maxSize={300} minSize={200}
                         onResize={this.resizeProps.onResize}
@@ -722,6 +922,10 @@ class Editor extends EditorCore {
                                 fontInfoInterface={this.fontInfoInterface}
                                 project={this.project}
                                 importFileAsAsset={this.importFileAsAsset}
+                                colorPickerType={this.state.colorPickerType}
+                                changeColorPickerType={this.changeColorPickerType}
+                                updateLastColors={this.updateLastColors}
+                                lastColorsUsed={this.state.lastColorsUsed}
                               />
                             </DockedPanel>
                           </ReflexElement>
@@ -738,7 +942,8 @@ class Editor extends EditorCore {
                               <AssetLibrary
                                 projectData={this.state.project}
                                 assets={this.project.getAssets()}
-                                openFileDialog={() => open()}
+                                openModal={this.openModal}
+                                openImportAssetFileDialog={this.openImportAssetFileDialog}
                                 selectObjects={this.selectObjects}
                                 clearSelection={this.clearSelection}
                                 isObjectSelected={this.isObjectSelected}
@@ -747,6 +952,7 @@ class Editor extends EditorCore {
                           </ReflexElement>
                         </ReflexContainer>
                       </ReflexElement>
+                      }
                     </ReflexContainer>
                   </div>
                 </div>
@@ -759,17 +965,18 @@ class Editor extends EditorCore {
               selectionIsScriptable={this.selectionIsScriptable}
               getSelectionType={this.getSelectionType}
               script={this.getSelectedObjectScript()}
-              errors={this.state.codeErrors}
+              error={this.project.error}
               onMinorScriptUpdate={this.onMinorScriptUpdate}
               onMajorScriptUpdate={this.onMajorScriptUpdate}
               deleteScript={this.deleteScript}
               scriptToEdit={this.state.scriptToEdit}
               editScript={this.editScript}
               toggleCodeEditor={this.toggleCodeEditor}
-              />}
+              requestAutosave={this.requestAutosave}
+              clearCodeEditorError={this.clearCodeEditorError}
+            />}
         </div>
-      )}
-      </Dropzone>
+      </div>
       )
   }
 }

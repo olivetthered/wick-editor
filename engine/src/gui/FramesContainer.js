@@ -46,7 +46,7 @@ Wick.GUIElement.FramesContainer = class extends Wick.GUIElement {
 
         // Add a small buffer to prevent some graphics from being cut off
         ctx.save();
-        ctx.translate(1,1);
+        ctx.translate(2,2);
 
         // Draw frame strips
         var layers = this.model.layers;
@@ -62,7 +62,7 @@ Wick.GUIElement.FramesContainer = class extends Wick.GUIElement {
                 }
 
                 var width = this.canvas.width;
-                var height = Wick.GUIElement.FRAMES_STRIP_HEIGHT;
+                var height = Wick.GUIElement.GRID_DEFAULT_CELL_HEIGHT - 2;
 
                 ctx.beginPath();
                 ctx.rect(this.project.scrollX, 0, width, height);
@@ -133,6 +133,16 @@ Wick.GUIElement.FramesContainer = class extends Wick.GUIElement {
             this._selectionBox.draw();
         }
 
+        // Top drop shadow
+        var dropShadow
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.rect(this.project.scrollX-2, this.project.scrollY-2, this.canvas.width, 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.rect(this.project.scrollX-2, this.project.scrollY-2, this.canvas.width, 1);
+        ctx.fill();
+
         ctx.restore();
     }
 
@@ -169,6 +179,13 @@ Wick.GUIElement.FramesContainer = class extends Wick.GUIElement {
     onMouseDrag () {
         if(!this._selectionBox) {
             this._selectionBox = new Wick.GUIElement.SelectionBox(this.model);
+        }
+
+        // Move the playhead when the selection box is dragged.
+        var newPlayhead = this.addFrameCol+1;
+        if(this.model.playheadPosition !== newPlayhead) {
+            this.model.playheadPosition = newPlayhead;
+            this.projectWasSoftModified();
         }
     }
 
@@ -218,6 +235,7 @@ Wick.GUIElement.FramesContainer = class extends Wick.GUIElement {
     _addFrameOverlayIsActive () {
         return this.addFrameCol >= 0 &&
                this.addFrameRow >= 0 &&
-               this.addFrameRow < this.model.layers.length;
+               this.addFrameRow < this.model.layers.length &&
+               !this.model.layers[this.addFrameRow].getFrameAtPlayheadPosition(this.addFrameCol+1);
     }
 }

@@ -273,6 +273,16 @@ Wick.Tickable = class extends Wick.Base {
     }
 
     /**
+     * Schedule a script to run at the end of the tick.
+     * @param {string} name - The name of the script to run. See Tickable.possibleScripts
+     */
+    scheduleScript (name) {
+        if(!this.project) return;
+
+        this.project.scheduleScript(this.uuid, name);
+    }
+
+    /**
      * Run the script with the corresponding event name.
      * @param {string} name - The name of the event. See Wick.Tickable.possibleScripts
      * @returns {object} object containing error info if an error happened. Returns null if there was no error (script ran successfully)
@@ -292,9 +302,12 @@ Wick.Tickable = class extends Wick.Base {
         var eventFnError = null;
         this.getEventFns(name).forEach(eventFn => {
             if(eventFnError) return;
-            eventFnError = this._runFunction(eventFn);
+            eventFnError = this._runFunction(eventFn, name);
         });
-        if(eventFnError) return eventFnError;
+        if(eventFnError) {
+            this.project.error = eventFnError;
+            return;
+        }
 
         // Run function inside tab
         if(this.scriptIsContentful(name)) {
@@ -304,11 +317,12 @@ Wick.Tickable = class extends Wick.Base {
                 return fn; // error
             }
             this._cachedScripts[name] = fn;
-            var error = this._runFunction(fn);
-            if(error) return error;
+            var error = this._runFunction(fn, name);
+            if(error) {
+                this.project.error = error;
+                return;
+            }
         }
-
-        return null;
     }
 
     /**
@@ -337,113 +351,95 @@ Wick.Tickable = class extends Wick.Base {
 
         // Call tick event function that corresponds to state.
         if(!this._onscreen && !this._onscreenLastTick) {
-            return this._onInactive();
+            this._onInactive();
         } else if (this._onscreen && !this._onscreenLastTick) {
-            return this._onActivated();
+            this._onActivated();
         } else if (this._onscreen && this._onscreenLastTick) {
-            return this._onActive();
+            this._onActive();
         } else if (!this._onscreen && this._onscreenLastTick) {
-            return this._onDeactivated();
+            this._onDeactivated();
         }
     }
 
     _onInactive () {
-        return null;
+        // Do nothing.
     }
 
     _onActivated () {
-        var error = this.runScript('default');
-        if(error) return error;
-
-        error = this.runScript('load');
-        return error;
+        this.scheduleScript('default');
+        this.scheduleScript('load');
     }
 
     _onActive () {
-        var error = this.runScript('update');
-        if (error) return error;
+        this.scheduleScript('update');
 
         var current = this._mouseState;
         var last = this._lastMouseState;
 
         // Mouse enter
         if(last === 'out' && current !== 'out') {
-            var error = this.runScript('mouseenter');
-            if(error) return error;
+            this.scheduleScript('mouseenter');
         }
 
         // Mouse down
         if(current === 'down') {
-            var error = this.runScript('mousedown');
-            if(error) return error;
+            this.scheduleScript('mousedown');
         }
 
         // Mouse pressed
         if(last === 'over' && current === 'down') {
             this._isClickTarget = true;
-            var error = this.runScript('mousepressed');
-            if(error) return error;
+            this.scheduleScript('mousepressed');
         }
 
         // Mouse click
         if(last === 'down' && current === 'over' && this._isClickTarget) {
-            var error = this.runScript('mouseclick');
-            if(error) return error;
+            this.scheduleScript('mouseclick');
         }
 
         // Mouse released
         if(last === 'down' && current === 'over') {
             this._isClickTarget = false;
-            var error = this.runScript('mousereleased');
-            if(error) return error;
+            this.scheduleScript('mousereleased');
         }
 
         // Mouse leave
         if(last !== 'out' && current === 'out') {
-            var error = this.runScript('mouseleave');
-            if(error) return error;
+            this.scheduleScript('mouseleave');
         }
 
         // Mouse hover
         if(current === 'over') {
-            var error = this.runScript('mousehover');
-            if(error) return error;
+            this.scheduleScript('mousehover');
         }
 
         // Mouse drag
         if(last === 'down' && current === 'down') {
-            var error = this.runScript('mousedrag');
-            if(error) return error;
+            this.scheduleScript('mousedrag');
         }
-
-        // Key events require the Tickable object to be inside of a project. Don't run them if there is no project
-        if(!this.project) return null;
 
         // Key down
         this.project.keysDown.forEach(key => {
             this.project.currentKey = key;
-            var error = this.runScript('keydown');
-            if(error) return error;
+            this.scheduleScript('keydown');
         });
 
         // Key press
         this.project.keysJustPressed.forEach(key => {
             this.project.currentKey = key;
-            var error = this.runScript('keypressed');
-            if(error) return error;
+            this.scheduleScript('keypressed');
         });
 
         // Key released
         this.project.keysJustReleased.forEach(key => {
             this.project.currentKey = key;
-            var error = this.runScript('keyreleased');
-            if(error) return error;
+            this.scheduleScript('keyreleased');
         });
     }
 
     _onDeactivated () {
         this._isClickTarget = false;
-        return this.runScript('unload');
+        this.scheduleScript('unload');
     }
 
     _evalScript (name, src) {
@@ -453,7 +449,8 @@ Wick.Tickable = class extends Wick.Base {
         try {
             esprima.parseScript(src);
         } catch (e) {
-            return this._generateEsprimaErrorInfo(e, name);
+            this.project.error = this._generateEsprimaErrorInfo(e, name);
+            return;
         }
 
         // Attempt to create valid function...
@@ -462,13 +459,14 @@ Wick.Tickable = class extends Wick.Base {
         } catch (e) {
             // This should almost never be thrown unless there is an attempt to use syntax
             // that the syntax checker (esprima) does not understand.
-            return this._generateErrorInfo(e, name);
+            this.project.error = this._generateErrorInfo(e, name);
+            return;
         }
 
         return fn;
     }
 
-    _runFunction (fn) {
+    _runFunction (fn, name) {
           var error = null;
 
           // Attach API methods
@@ -552,7 +550,9 @@ Wick.Tickable = class extends Wick.Base {
             var lineString = split[split.length-2];
             var lineInt = parseInt(lineString);
             if(!isNaN(lineInt)) {
-                lineNumber = lineInt-2;
+                lineNumber = lineInt - 2;
+                lineNumber = lineInt;
+                lineNumber = lineNumber - 2;
             }
         });
 

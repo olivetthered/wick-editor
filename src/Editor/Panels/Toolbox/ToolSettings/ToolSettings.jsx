@@ -36,6 +36,7 @@ class ToolSettings extends Component {
       "ellipse": this.renderEllipseSettings,
       "line": this.renderLineSettings,
       "text": this.renderTextSettings,
+      "fillbucket": this.renderFillbucketSettings,
     }
   }
 
@@ -70,6 +71,7 @@ class ToolSettings extends Component {
         {this.renderBrushSize()}
         {this.renderBrushSmoothing()}
         {this.renderEnablePressure()}
+        {this.renderEnableRelativeBrushSize()}
       </div>
     );
   }
@@ -123,6 +125,14 @@ class ToolSettings extends Component {
     );
   }
 
+  renderFillbucketSettings = () => {
+    return (
+      <div className='settings-input-container'>
+        {this.renderGapFillAmount()}
+      </div>
+    );
+  }
+
   renderEnablePressure = () => {
     return (
       <ToolSettingsInput
@@ -131,6 +141,17 @@ class ToolSettings extends Component {
         type='checkbox'
         value={this.getToolSetting('pressureEnabled')}
         onChange={() => this.setToolSetting('pressureEnabled', !this.getToolSetting('pressureEnabled'))}/>
+    )
+  }
+
+  renderEnableRelativeBrushSize = () => {
+    return (
+      <ToolSettingsInput
+        name='Relative Brush Size'
+        icon='brushrelativesize'
+        type='checkbox'
+        value={this.getToolSetting('relativeBrushSize')}
+        onChange={() => this.setToolSetting('relativeBrushSize', !this.getToolSetting('relativeBrushSize'))}/>
     )
   }
 
@@ -225,6 +246,18 @@ class ToolSettings extends Component {
         value={this.getToolSetting('brushSize')}
         onChange={(val) => this.setToolSetting('brushSize', val)}
         inputRestrictions={this.props.getToolSettingRestrictions('brushSize')}/>
+    )
+  }
+
+  renderGapFillAmount = () => {
+    return (
+      <ToolSettingsInput
+        name='Gap Fill Amount'
+        icon='gapfillamount'
+        type='numeric'
+        value={this.getToolSetting('gapFillAmount')}
+        onChange={(val) => this.setToolSetting('gapFillAmount', val)}
+        inputRestrictions={this.props.getToolSettingRestrictions('gapFillAmount')}/>
     )
   }
 

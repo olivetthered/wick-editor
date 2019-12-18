@@ -19,10 +19,11 @@
 
 import { Component } from 'react';
 import localForage from 'localforage';
+import * as urlParse from 'url-parse/dist/url-parse';
+import queryString from 'query-string';
 import { saveAs } from 'file-saver';
-import GIFExport from './export/GIFExport';
-import ZIPExport from './export/ZIPExport';
 import VideoExport from './export/VideoExport';
+import GIFExport from './export/GIFExport';
 
 class EditorCore extends Component {
   /**
@@ -41,6 +42,10 @@ class EditorCore extends Component {
     if(newTool !== this.getActiveTool().name) {
       this.lastUsedTool = this.getActiveTool();
       this.project.activeTool = newTool;
+
+      this._onEyedropperPickedColor = (color) => {
+        this.project.toolSettings.setSetting('fillColor', new window.Wick.Color(color));
+      };
 
       this.projectDidChange();
     }
@@ -125,37 +130,23 @@ class EditorCore extends Component {
   }
 
   /**
-   * Shrinks the brush size by toolSettings.sizeJump if a brush tool is selected.
+   * Shrinks the brush/eraser size by a given amount.
    */
-  shrinkBrushSize = () => {
-    if (this.getActiveTool() !== 'brush' && this.getActiveTool() !== 'eraser') { return }
+  changeBrushSize = (amt) => {
+    var tool = this.project.activeTool.name
+    var option;
+    if(tool === 'brush') {
+        option = 'brushSize';
+    } else if (tool === 'eraser') {
+        option = 'eraserSize';
+    } else {
+        return;
+    }
 
-    let toolSettings = this.getToolSettings();
-    let minimum = 1;
+    let brushSize = this.getToolSetting(option);
+    let newBrushSize = brushSize += amt;
 
-    let brushSize = toolSettings.brushSize;
-    let newBrushSize = Math.max(brushSize-toolSettings.sizeJump, minimum);
-
-    this.setToolSettings({
-      brushSize: newBrushSize,
-    });
-  }
-
-  /**
-   * Grows the brush size by toolSettings.sizeJump if a brush tool is selected.
-   */
-  growBrushSize = () => {
-    if (this.getActiveTool() !== 'brush' && this.getActiveTool() !== 'eraser') { return }
-
-    let toolSettings = this.getToolSettings();
-    let maximum = 100;
-
-    let brushSize = toolSettings.brushSize;
-    let newBrushSize = Math.min(brushSize+toolSettings.sizeJump, maximum);
-
-    this.setToolSettings({
-      brushSize: newBrushSize,
-    });
+    this.setToolSetting(option, newBrushSize);
   }
 
   /**
@@ -163,7 +154,9 @@ class EditorCore extends Component {
    */
   movePlayheadForwards = () => {
     this.project.focus.timeline.playheadPosition++;
-    this.projectDidChange();
+    this.project.guiElement.checkForPlayheadAutoscroll();
+    this.project.view.render();
+    this.project.guiElement.draw();
   }
 
   /**
@@ -171,6 +164,15 @@ class EditorCore extends Component {
    */
   movePlayheadBackwards = () => {
     this.project.focus.timeline.playheadPosition--;
+    this.project.guiElement.checkForPlayheadAutoscroll();
+    this.project.view.render();
+    this.project.guiElement.draw();
+  }
+
+  /**
+   * Finishes a playhead moving operation.
+   */
+  finishMovingPlayhead = () => {
     this.projectDidChange();
   }
 
@@ -573,7 +575,8 @@ class EditorCore extends Component {
    */
   nudgeSelectionUp = () => {
     this.project.selection.y -= 1;
-    this.projectDidChange();
+    this.project.view.render();
+    this.project.guiElement.draw();
   }
 
   /**
@@ -581,7 +584,8 @@ class EditorCore extends Component {
    */
   nudgeSelectionDown = () => {
     this.project.selection.y += 1;
-    this.projectDidChange();
+    this.project.view.render();
+    this.project.guiElement.draw();
   }
 
   /**
@@ -589,7 +593,8 @@ class EditorCore extends Component {
    */
   nudgeSelectionRight = () => {
     this.project.selection.x += 1;
-    this.projectDidChange();
+    this.project.view.render();
+    this.project.guiElement.draw();
   }
 
   /**
@@ -597,7 +602,8 @@ class EditorCore extends Component {
    */
   nudgeSelectionLeft = () => {
     this.project.selection.x -= 1;
-    this.projectDidChange();
+    this.project.view.render();
+    this.project.guiElement.draw();
   }
 
   /**
@@ -605,7 +611,8 @@ class EditorCore extends Component {
    */
   nudgeSelectionUpMore = () => {
     this.project.selection.y -= 10;
-    this.projectDidChange();
+    this.project.view.render();
+    this.project.guiElement.draw();
   }
 
   /**
@@ -613,7 +620,8 @@ class EditorCore extends Component {
    */
   nudgeSelectionDownMore = () => {
     this.project.selection.y += 10;
-    this.projectDidChange();
+    this.project.view.render();
+    this.project.guiElement.draw();
   }
 
   /**
@@ -621,7 +629,8 @@ class EditorCore extends Component {
    */
   nudgeSelectionRightMore = () => {
     this.project.selection.x += 10;
-    this.projectDidChange();
+    this.project.view.render();
+    this.project.guiElement.draw();
   }
 
   /**
@@ -629,6 +638,15 @@ class EditorCore extends Component {
    */
   nudgeSelectionLeftMore = () => {
     this.project.selection.x -= 10;
+    this.project.view.render();
+    this.project.guiElement.draw();
+  }
+
+  /**
+   * Finish the current nudging operation
+   */
+  finishNudgingObject = () => {
+    console.log('finishNudgingObject');
     this.projectDidChange();
   }
 
@@ -711,14 +729,17 @@ class EditorCore extends Component {
 
     let obj = window.Wick.ObjectCache.getObjectByUUID(uuid);
 
-    if (!(obj instanceof window.Wick.ImageAsset)) {
-      console.error("Object not an instance of Wick Image Asset");
-      return;
+    if (obj instanceof window.Wick.ImageAsset) {
+      this.project.createImagePathFromAsset(window.Wick.ObjectCache.getObjectByUUID(uuid), dropPoint.x, dropPoint.y, path => {
+        this.projectDidChange();
+      });
+    } else if (obj instanceof window.Wick.ClipAsset) {
+      this.project.createClipInstanceFromAsset(window.Wick.ObjectCache.getObjectByUUID(uuid), dropPoint.x, dropPoint.y, clip => {
+        this.projectDidChange();
+      });
+    } else {
+      console.error('object is not an ImageAsset or a ClipAsset')
     }
-
-    this.project.createImagePathFromAsset(window.Wick.ObjectCache.getObjectByUUID(uuid), dropPoint.x, dropPoint.y, path => {
-      this.projectDidChange();
-    });
   }
 
  /**
@@ -768,9 +789,10 @@ class EditorCore extends Component {
     }
 
     // Add all successfully uploaded assets
-    acceptedFiles.forEach(file => {
+    for(var i = 0; i < acceptedFiles.length; i++) {
+      var file = acceptedFiles[i];
       this.importFileAsAsset(file);
-    });
+    }
   }
 
   /**
@@ -907,11 +929,25 @@ class EditorCore extends Component {
   exportProjectAsStandaloneZip = (name) => {
     let toastID = this.toast('Exporting project as ZIP...', 'info');
     let outputName = name || this.project.name;
-    ZIPExport.bundleStandaloneProject(this.project, blob => {
+    window.Wick.ZIPExport.bundleProject(this.project, blob => {
       this.updateToast(toastID, {
         type: 'success',
-        text: "Successfully saved .zip file." });
+        text: "Successfully created .zip file." });
       saveAs(blob, outputName + '.zip');
+    });
+  }
+
+  /**
+   * Export the current project as a bundled standalone HTML file.
+   */
+  exportProjectAsStandaloneHTML = (name) => {
+    let toastID = this.toast('Exporting project as HTML...', 'info');
+    let outputName = name || this.project.name;
+    window.Wick.HTMLExport.bundleProject(this.project, html => {
+      this.updateToast(toastID, {
+        type: 'success',
+        text: "Successfully created .html file." });
+      saveAs(new Blob([html], {type: "text/plain"}), outputName + '.html');
     });
   }
 
@@ -978,6 +1014,47 @@ class EditorCore extends Component {
   }
 
   /**
+   * Parses a URL passed into the editor using ?project=file.wick in the URL. URLs must be encoded with encodeURIComponent.
+   */
+  tryToParseProjectURL () {
+    // Retrieve URL
+    var urlParams = queryString.parse(window.location.search);
+    var urlParam = urlParams.project;
+
+    // No URL param, skip the download
+    if(!urlParam) {
+      return false;
+    }
+
+    // Parse requested URL
+    var url = new urlParse(urlParam);
+
+    // Check if the provided URL is allowed in the whitelist.
+    var whitelist = ['wickeditor.com', 'editor.wickeditor.com', 'test.wickeditor.com', 'aka.ms'];
+    if(whitelist.indexOf(url.hostname) === -1) {
+      this.toast('Could not open project from link! \n URL is not on whitelist.','warning');
+      console.error('tryToParseProjectURL: URL is not in the whitelist.');
+      return false;
+    }
+
+    // Download and open the wick project.
+    fetch(url)
+      .then(resp => resp.blob())
+      .then(blob => {
+        window.Wick.WickFile.fromWickFile(blob, loadedProject => {
+          this.setupNewProject(loadedProject);
+        }, 'blob');
+      })
+      .catch((e) => {
+        this.toast('Could not download project from URL.','warning');
+        console.error('tryToParseProjectURL: Could not download Wick project.')
+        console.error(e);
+      });
+
+    return true;
+  }
+
+  /**
    * Start a timer to run an autosave sometime in the future.
    */
   requestAutosave = () => {
@@ -993,14 +1070,22 @@ class EditorCore extends Component {
   autoSaveProject = () => {
     if (!this.project) return;
     if (this.state.previewPlaying) return;
+    if (this.state.activeModalName !== null) return;
 
     this.showWaitOverlay();
 
-    window.Wick.WickFile.toWickFile(this.project, wickFile => {
-      localForage.setItem(this.autoSaveKey, wickFile).then(() => {
-        this.hideWaitOverlay();
+    setTimeout(() => {
+      window.Wick.WickFile.toWickFile(this.project, wickFile => {
+        localForage.setItem(this.autoSaveKey, wickFile)
+        .then(() => {
+          this.hideWaitOverlay();
+        })
+        .catch(err => {
+          console.error(err)
+          this.hideWaitOverlay();
+        })
       });
-    });
+    }, 500);
   }
 
   /**
@@ -1073,7 +1158,7 @@ class EditorCore extends Component {
 
     this.setState({
       previewPlaying: !this.state.previewPlaying,
-      codeErrors: [],
+      showCodeErrors: false,
     });
     this.hideWaitOverlay();
     this.processingAction = false;
@@ -1090,21 +1175,28 @@ class EditorCore extends Component {
   }
 
   /**
-   * Stops the project if it is currently preview playing and displays provided
-   * errors in the code editor.
-   * @param  {object[]} errors Array of error objects.
+   * Stops the project if it is currently preview playing and displays any errors in the code window.
    */
-  stopPreviewPlaying = (errors) => {
+  stopPreviewPlaying = () => {
     this.setState({
       previewPlaying: false,
-      codeErrors: errors === undefined ? [] : errors,
+      codeEditorOpen: this.project.error === undefined ? this.state.codeEditorOpen : true,
+      showCodeErrors: this.project.error === undefined ? false : true,
     });
 
-    this.projectDidChange();
-
-    if (errors) {
-      this.showCodeErrors(errors);
+    if(this.project.error) {
+        this.editScript(this.project.error.name);
     }
+
+    this.projectDidChange();
+  }
+
+  /**
+   * Clears the current error message in the project.
+   */
+  clearCodeEditorError = () => {
+      this.project.error = null;
+      this.projectDidChange();
   }
 
   /**
@@ -1119,14 +1211,24 @@ class EditorCore extends Component {
   }
 
   /**
+   * Duplicates the current objects in the selection.
+   */
+  duplicateSelection = () => {
+    if(this.project.duplicateSelection()) {
+      this.projectDidChange();
+    } else {
+      this.toast('There is nothing to duplicate.', 'warning');
+    }
+  }
+
+  /**
    * Copies the selected objects to the clipboard and then deletes them from the project.
    */
   cutSelectionToClipboard = () => {
-    if(this.project.copySelectionToClipboard()) {
-      this.deleteSelectedObjects();
+    if(this.project.cutSelectionToClipboard()) {
       this.projectDidChange();
     } else {
-      this.toast('There is nothing to cut.', 'warning');
+      this.toast('There is nothing to duplicate.', 'warning');
     }
   }
 
@@ -1167,37 +1269,32 @@ class EditorCore extends Component {
     return this.project.hasFont(font);
   }
 
-  /*
-  'extend-frame': this.editor.extendFrame,
-  'shrink-frame': this.editor.shrinkFrame,
-  'move-frame-right': this.editor.moveFrameRight,
-  'move-frame-left': this.editor.moveFrameLeft,
-  'create-tween': this.editor.createTween,
-  'cut-frame': this.editor.cutFrame,
-  'copy-frame-forward': this.editor.copyFrameForward,*/
-
   extendFrame = () => {
       this.project.extendSelectedFrames();
-      this.projectDidChange();
+      this.project.guiElement.draw();
+      //this.projectDidChange();
   }
 
   shrinkFrame = () => {
       this.project.shrinkSelectedFrames();
-      this.projectDidChange();
+      this.project.guiElement.draw();
+      //this.projectDidChange();
   }
 
   moveFrameRight = () => {
       this.project.moveSelectedFramesRight();
-      this.projectDidChange();
+      this.project.guiElement.draw();
+      //this.projectDidChange();
   }
 
   moveFrameLeft = () => {
       this.project.moveSelectedFramesLeft();
-      this.projectDidChange();
+      this.project.guiElement.draw();
+      //this.projectDidChange();
   }
 
   createTween = () => {
-      this.project.createTweenOnSelectedFrames();
+      this.project.createTween();
       this.projectDidChange();
   }
 
@@ -1206,9 +1303,36 @@ class EditorCore extends Component {
       this.projectDidChange();
   }
 
-  copyFrameForward = () => {
-      this.project.copySelectedFramesForward();
+  insertBlankFrame = () => {
+      this.project.insertBlankFrame();
       this.projectDidChange();
+  }
+
+  extendSelectedFramesAndPushOtherFrames = () => {
+      this.project.extendSelectedFramesAndPushOtherFrames();
+      this.project.guiElement.draw();
+      //this.projectDidChange();
+  }
+
+  shrinkSelectedFramesAndPullOtherFrames = () => {
+      this.project.shrinkSelectedFramesAndPullOtherFrames();
+      this.project.guiElement.draw();
+      //this.projectDidChange();
+  }
+
+  exportSelectedClip = () => {
+      var clip = this.project.selection.getSelectedObject();
+      if(!clip) return;
+      if(!(clip instanceof window.Wick.Clip)) return;
+
+      window.Wick.WickObjectFile.toWickObjectFile(clip, 'blob', file => {
+          window.saveAs(file, (clip.identifier || 'object') + '.wickobj');
+      });
+  }
+
+  onEyedropperPickedColor = (e) => {
+      this._onEyedropperPickedColor(e.color);
+      this.activateLastTool();
   }
 }
 

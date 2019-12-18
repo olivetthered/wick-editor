@@ -68,6 +68,7 @@ Wick.View.Project = class extends Wick.View {
 
         this._svgCanvas = null;
         this._svgBackgroundLayer = null;
+        this._svgBordersLayer = null;
 
         this._pan = {x: 0, y: 0};
         this._zoom = 1;
@@ -212,13 +213,16 @@ Wick.View.Project = class extends Wick.View {
     _setupTools () {
         // This is a hacky way to create scroll-to-zoom functionality.
         // (Using https://github.com/jquery/jquery-mousewheel for cross-browser mousewheel event)
-        $(this._svgCanvas).on('mousewheel', e => {
-            e.preventDefault();
-            var d = e.deltaY * e.deltaFactor * 0.001;
-            this.paper.view.zoom = Math.max(0.1, this.paper.view.zoom + d);
-            this._applyZoomAndPanChangesFromPaper();
-        });
+        if(!this.model.publishedMode) {
+            $(this._svgCanvas).on('mousewheel', e => {
+                e.preventDefault();
+                var d = e.deltaY * e.deltaFactor * 0.001;
+                this.paper.view.zoom = Math.max(0.1, this.paper.view.zoom + d);
+                this._applyZoomAndPanChangesFromPaper();
+            });
+        }
 
+        // Connect all Wick Tools into the paper.js project
         for (var toolName in this.model.tools) {
             var tool = this.model.tools[toolName];
             tool.project = this.model;
@@ -230,6 +234,9 @@ Wick.View.Project = class extends Wick.View {
                 this._applyZoomAndPanChangesFromPaper();
                 this.fireEvent('canvasModified', e);
             });
+            tool.on('eyedropperPickedColor', (e) => {
+                this.fireEvent('eyedropperPickedColor', e);
+            })
             tool.on('error', (e) => {
                 this.fireEvent('error', e);
             })
@@ -258,7 +265,7 @@ Wick.View.Project = class extends Wick.View {
             this.canvas.style.backgroundColor = this.canvasBGColor || Wick.View.Project.DEFAULT_CANVAS_BG_COLOR;
         } else {
             // We're inside a clip, so use the project background color as the container background color
-            this.canvas.style.backgroundColor = this.model.backgroundColor;
+            this.canvas.style.backgroundColor = this.model.backgroundColor.hex;
         }
     }
 
@@ -275,6 +282,11 @@ Wick.View.Project = class extends Wick.View {
         this._svgBackgroundLayer = new paper.Layer();
         this._svgBackgroundLayer.name = 'wick_project_bg';
         this._svgBackgroundLayer.remove();
+
+        this._svgBordersLayer = new paper.Layer();
+        this._svgBordersLayer.name = 'wick_project_borders';
+        this._svgBordersLayer.addChildren(this._generateSVGBorders());
+        this._svgBordersLayer.remove();
 
         this.paper.project.clear();
     }
@@ -326,6 +338,9 @@ Wick.View.Project = class extends Wick.View {
 
         // Generate frame layers
         this.model.focus.timeline.view.render();
+        this.model.focus.timeline.view.onionSkinnedFramesLayers.forEach(layer => {
+            this.paper.project.addLayer(layer);
+        });
         this.model.focus.timeline.view.activeFrameLayers.forEach(layer => {
             this.paper.project.addLayer(layer);
             if(this.model.project &&
@@ -335,14 +350,16 @@ Wick.View.Project = class extends Wick.View {
                 layer.activate();
             }
         });
-        this.model.focus.timeline.view.onionSkinnedFramesLayers.forEach(layer => {
-            this.paper.project.addLayer(layer);
-        });
 
-        // TODO replace
         // Render selection
         this.model.selection.view.render();
         this.paper.project.addLayer(this.model.selection.view.layer);
+
+        // Render black bars (for published projects)
+        if(this.model.publishedMode) {
+            console.log(this._svgBordersLayer)
+            this.paper.project.addLayer(this._svgBordersLayer);
+        }
     }
 
     _generateSVGCanvasStage () {
@@ -351,7 +368,7 @@ Wick.View.Project = class extends Wick.View {
             new this.paper.Point(this.model.width, this.model.height),
         );
         stage.remove();
-        stage.fillColor = this.model.backgroundColor;
+        stage.fillColor = this.model.backgroundColor.rgba;
 
         return stage;
     }
@@ -382,18 +399,48 @@ Wick.View.Project = class extends Wick.View {
         return originCrosshair;
     }
 
-    _getCenteredPan () {
-        if(this.model.focus.isRoot) {
-            return {
-                x: this.model.pan.x - this.model.width/2,
-                y: this.model.pan.y - this.model.height/2
-            };
-        } else {
-            return {
-                x: this.model.pan.x,
-                y: this.model.pan.y,
-            };
-        }
+    /* Renders the off-screen borders that hide content out of the project bounds. */
+    _generateSVGBorders () {
+        /**
+         * +----------------------------+
+         * |             top            +
+         * +----------------------------+
+         * +-----+ +------------+ +-----+
+         * |left | |   canvas   | |right|
+         * +-----+ +------------+ +-----+
+         * +----------------------------+
+         * |           bottom           +
+         * +----------------------------+
+         */
+
+        var borderMin = -10000,
+            borderMax = 10000;
+        return [
+            // top
+            new paper.Path.Rectangle({
+                from: new paper.Point(borderMin, borderMin),
+                to: new paper.Point(borderMax, 0),
+                fillColor: 'black',
+            }),
+            // bottom
+            new paper.Path.Rectangle({
+                from: new paper.Point(borderMin, this.model.height),
+                to: new paper.Point(borderMax, borderMax),
+                fillColor: 'black',
+            }),
+            // left
+            new paper.Path.Rectangle({
+                from: new paper.Point(borderMin, 0),
+                to: new paper.Point(0, this.model.height),
+                fillColor: 'black',
+            }),
+            // right
+            new paper.Path.Rectangle({
+                from: new paper.Point(this.model.width, 0),
+                to: new paper.Point(borderMax, borderMax),
+                fillColor: 'black',
+            }),
+        ];
     }
 
     _calculateFitZoom () {
@@ -427,5 +474,7 @@ Wick.View.Project = class extends Wick.View {
 
         this.zoom = this.paper.view.zoom;
         this.model.zoom = this.zoom;
+
+        this.render();
     }
 }

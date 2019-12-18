@@ -95,28 +95,35 @@ class Toolbox extends Component {
         <div className="color-container toolbox-item" id="fill-color-picker-container">
             <WickInput
               type="color"
-              color={this.props.getToolSetting('fillColor').toCSS()}
+              color={this.props.getToolSetting('fillColor').rgba}
               onChange={(color) => {
-                this.props.setToolSetting('fillColor', color);
+                this.props.setToolSetting('fillColor', new window.Wick.Color(color));
               }}
               id="tool-box-fill-color"
               tooltipID="tool-box-fill-color"
               tooltip="Fill Color"
               placement="bottom"
+              colorPickerType={this.props.colorPickerType}
+              changeColorPickerType={this.props.changeColorPickerType}
+              updateLastColors={this.props.updateLastColors}
+              lastColorsUsed={this.props.lastColorsUsed}
               />
           </div>
           <div className="color-container toolbox-item" id="stroke-color-picker-container">
             <WickInput
               type="color"
-              color= {this.props.getToolSetting('strokeColor').toCSS()}
+              color= {this.props.getToolSetting('strokeColor').rgba}
               onChange={(color) => {
-                this.props.setToolSetting('strokeColor', color);
+                this.props.setToolSetting('strokeColor', new window.Wick.Color(color));
               }}
               id="tool-box-stroke-color"
               tooltipID="tool-box-stroke-color"
               tooltip="Stroke Color"
               placement="bottom"
               stroke={true}
+              colorPickerType={this.props.colorPickerType}
+              changeColorPickerType={this.props.changeColorPickerType}
+              lastColorsUsed={this.props.lastColorsUsed}
               />
           </div>
 

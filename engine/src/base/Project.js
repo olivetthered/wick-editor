@@ -27,7 +27,7 @@ Wick.Project = class extends Wick.Base {
      * @param {number} width - Project width in pixels. Default 720.
      * @param {number} height - Project height in pixels. Default 405.
      * @param {number} framerate - Project framerate in frames-per-second. Default 12.
-     * @param {string} backgroundColor - Project background color in hex. Default #ffffff.
+     * @param {Color} backgroundColor - Project background color in hex. Default #ffffff.
      */
     constructor (args) {
         if(!args) args = {};
@@ -37,7 +37,7 @@ Wick.Project = class extends Wick.Base {
         this._width = args.width || 720;
         this._height = args.height || 405;
         this._framerate = args.framerate || 12;
-        this._backgroundColor = args.backgroundColor || '#ffffff';
+        this._backgroundColor = args.backgroundColor || new Wick.Color('#ffffff');
 
         this.pan = {x: 0, y: 0};
         this.zoom = 1.0;
@@ -69,6 +69,7 @@ Wick.Project = class extends Wick.Base {
 
         this._hideCursor = false;
         this._muted = false;
+        this._publishedMode = false;
 
         this._tools = {
             brush: new Wick.Tools.Brush(),
@@ -95,13 +96,16 @@ Wick.Project = class extends Wick.Base {
         this._toolSettings = new Wick.ToolSettings();
         this._toolSettings.onSettingsChanged((name, value) => {
             if(name === 'fillColor') {
-                this.selection.fillColor = value;
+                this.selection.fillColor = value.rgba;
             } else if (name === 'strokeColor') {
-                this.selection.strokeColor = value;
+                this.selection.strokeColor = value.rgba;
             }
         });
 
         this._playing = false;
+
+        this._scriptSchedule = [];
+        this._error = null;
 
         this.history.project = this;
         this.history.pushState(Wick.History.StateType.ONLY_VISIBLE_OBJECTS);
@@ -114,7 +118,7 @@ Wick.Project = class extends Wick.Base {
         this.width = data.width;
         this.height = data.height;
         this.framerate = data.framerate;
-        this.backgroundColor = data.backgroundColor;
+        this.backgroundColor = new Wick.Color(data.backgroundColor);
 
         this._focus = data.focus;
 
@@ -128,7 +132,7 @@ Wick.Project = class extends Wick.Base {
         data.name = this.name;
         data.width = this.width;
         data.height = this.height;
-        data.backgroundColor = this.backgroundColor;
+        data.backgroundColor = this.backgroundColor.rgba;
         data.framerate = this.framerate;
 
         data.onionSkinEnabled = this.onionSkinEnabled
@@ -201,7 +205,6 @@ Wick.Project = class extends Wick.Base {
     }
 
     set backgroundColor (backgroundColor) {
-        if(typeof backgroundColor !== 'string') return;
         this._backgroundColor = backgroundColor;
     }
 
@@ -535,14 +538,23 @@ Wick.Project = class extends Wick.Base {
         let imageTypes = Wick.ImageAsset.getValidMIMETypes();
         let soundTypes = Wick.SoundAsset.getValidMIMETypes();
         let fontTypes = Wick.FontAsset.getValidMIMETypes();
+        let clipTypes = Wick.ClipAsset.getValidMIMETypes();
+
+        // Fix missing mimetype for wickobj files
+        var type = file.type;
+        if(file.type === '' && file.name.endsWith('.wickobj')) {
+            type = 'application/json';
+        }
 
         let asset = undefined;
-        if (imageTypes.indexOf(file.type) !== -1) {
+        if (imageTypes.indexOf(type) !== -1) {
             asset = new Wick.ImageAsset();
-        } else if (soundTypes.indexOf(file.type) !== -1) {
+        } else if (soundTypes.indexOf(type) !== -1) {
             asset = new Wick.SoundAsset();
-        } else if (fontTypes.indexOf(file.type) !== -1) {
+        } else if (fontTypes.indexOf(type) !== -1) {
             asset = new Wick.FontAsset();
+        } else if (clipTypes.indexOf(type) !== -1) {
+            asset = new Wick.ClipAsset();
         }
 
         if (asset === undefined) {
@@ -553,6 +565,8 @@ Wick.Project = class extends Wick.Base {
             console.log(soundTypes)
             console.warn('supported font file types:');
             console.log(fontTypes)
+            console.warn('supported clip file types:');
+            console.log(clipTypes)
             callback(null);
             return;
         }
@@ -596,9 +610,15 @@ Wick.Project = class extends Wick.Base {
         var paths = this.selection.getSelectedObjects('Path');
         this.selection.clear();
         var booleanOpResult = Wick.Path.booleanOp(paths, booleanOpName);
+
         paths.forEach(path => {
+            // Don't remove the topmost path if performing subtration
+            if(paths.indexOf(path) === paths.length - 1 && booleanOpName === 'subtract') {
+                return;
+            }
             path.remove();
         });
+
         this.activeFrame.addPath(booleanOpResult);
         this.selection.select(booleanOpResult);
     }
@@ -618,6 +638,39 @@ Wick.Project = class extends Wick.Base {
     }
 
     /**
+     * Copy the contents of the selection to the clipboard, and delete what was copied.
+     * @returns {boolean} True if there was something to cut, false otherwise
+     */
+    cutSelectionToClipboard () {
+        if(this.copySelectionToClipboard()) {
+            this.deleteSelectedObjects();
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Paste the contents of the clipboard into the project.
+     * @returns {boolean} True if there was something to paste in the clipboard, false otherwise.
+     */
+    pasteClipboardContents () {
+        return this.clipboard.pasteObjectsFromClipboard(this);
+    }
+
+    /**
+     * Copy and paste the current selection.
+     * @returns {boolean} True if there was something to duplicate, false otherwise
+     */
+    duplicateSelection () {
+        if(!this.copySelectionToClipboard()) {
+            return false;
+        } else {
+            return this.pasteClipboardContents();
+        }
+    }
+
+    /**
      * Cut the currently selected frames.
      */
     cutSelectedFrames () {
@@ -627,21 +680,84 @@ Wick.Project = class extends Wick.Base {
     }
 
     /**
-     * Copy the currently selected frames forwards.
+     * Insert a blank frame at the current playhead position, and selects the newly added frames.
      */
-    copySelectedFramesForward () {
-        this.selection.getSelectedObjects('Frame').forEach(frame => {
-            frame.copyForward();
+    insertBlankFrame () {
+        var addedFrames = [];
+
+        if(this.selection.numObjects > 0) {
+            // Are there frames selected? insert blank frames inside of them
+            this.selection.getSelectedObjects('Frame').forEach(frame => {
+                addedFrames.push(frame.insertBlankFrame());
+            });
+        } else if (this.activeFrame) {
+            // Otherwise, just add a frame at the playhead position + active layer
+            addedFrames.push(this.activeFrame.insertBlankFrame());
+        } else {
+            // Or, if there was no active frame, create a new frame
+            var newFrame = new Wick.Frame({start: this.activeTimeline.playheadPosition});
+            this.activeLayer.addFrame(newFrame);
+            addedFrames.push(newFrame);
+        }
+
+        // Select the newly added frames
+        this.selection.clear();
+        addedFrames.forEach(frame => {
+            this.selection.select(frame);
         });
     }
 
     /**
-     * Create a new tween on all selected frames.
+     * A tween can be created if frames are selected or if there is a frame under the playhead on the active layer.
      */
-    createTweenOnSelectedFrames () {
-        this.selection.getSelectedObjects('Frame').forEach(frame => {
+    get canCreateTween () {
+        // Frames are selected, a tween can be created
+        var selectedFrames = this.selection.getSelectedObjects('Frame');
+        if(selectedFrames.length > 0) {
+            // Make sure you can only create tweens on contentful frames
+            if(selectedFrames.find(frame => {
+                return !frame.contentful;
+            })) {
+                return false
+            } else {
+                return true;
+            }
+        }
+
+        // There is a frame under the playhead on the active layer, a tween can be created
+        var activeFrame = this.activeLayer.activeFrame;
+        if(activeFrame) {
+            // ...but only if that frame is contentful
+            return activeFrame.contentful;
+        }
+
+        return false;
+    }
+
+    /**
+     * Create a new tween on all selected frames OR on the active frame of the active layer.
+     */
+    createTween () {
+        var selectedFrames = this.selection.getSelectedObjects('Frame');
+        if(selectedFrames.length > 0) {
+            // Create a tween on all selected frames
+            this.selection.getSelectedObjects('Frame').forEach(frame => {
+                frame.createTween();
+            });
+        } else {
+            // Create a tween on the active frame
+            this.activeLayer.activeFrame.createTween();
+        }
+    }
+
+    /**
+     * Tries to create a tween if there is an empty space between tweens.
+     */
+    tryToAutoCreateTween () {
+        var frame = this.activeFrame;
+        if(frame.tweens.length > 0 && !frame.getTweenAtPosition(frame.getRelativePlayheadPosition())) {
             frame.createTween();
-        });
+        }
     }
 
     /**
@@ -653,7 +769,17 @@ Wick.Project = class extends Wick.Base {
             frame.end ++;
         });
         this.activeTimeline.resolveFrameOverlap(frames);
-        this.activeTimeline.resolveFrameGaps();
+        this.activeTimeline.resolveFrameGaps(frames);
+    }
+
+    /**
+     * Move the right edge of all selected frames right one frame, and push other frames away.
+     */
+    extendSelectedFramesAndPushOtherFrames () {
+        var frames = this.selection.getSelectedObjects('Frame');
+        frames.forEach(frame => {
+            frame.extendAndPushOtherFrames();
+        });
     }
 
     /**
@@ -666,7 +792,17 @@ Wick.Project = class extends Wick.Base {
             frame.end --;
         });
         this.activeTimeline.resolveFrameOverlap(frames);
-        this.activeTimeline.resolveFrameGaps();
+        this.activeTimeline.resolveFrameGaps(frames);
+    }
+
+    /**
+     * Move the right edge of all selected frames left one frame, and pull other frames along.
+     */
+    shrinkSelectedFramesAndPullOtherFrames () {
+        var frames = this.selection.getSelectedObjects('Frame');
+        frames.forEach(frame => {
+            frame.shrinkAndPullOtherFrames();
+        });
     }
 
     /**
@@ -693,14 +829,6 @@ Wick.Project = class extends Wick.Base {
         });
         this.activeTimeline.resolveFrameOverlap(frames);
         this.activeTimeline.resolveFrameGaps();
-    }
-
-    /**
-     * Paste the contents of the clipboard into the project.
-     * @returns {boolean} True if there was something to paste in the clipboard, false otherwise.
-     */
-    pasteClipboardContents () {
-        return this.clipboard.pasteObjectsFromClipboard(this);
     }
 
     /**
@@ -734,6 +862,22 @@ Wick.Project = class extends Wick.Base {
             path.x = x;
             path.y = y;
             callback(path);
+        });
+    }
+
+    /**
+     * Adds an instance of a clip asset to the active frame.
+     * @param {Wick.Asset} asset - the asset to create the clip instance from
+     * @param {number} x - the x position to create the image path at
+     * @param {number} y - the y position to create the image path at
+     * @param {function} callback - the function to call after the path is created.
+     */
+    createClipInstanceFromAsset (asset, x, y, callback) {
+        asset.createInstance(clip => {
+            this.activeFrame.addPath(clip);
+            clip.x = x;
+            clip.y = y;
+            callback(clip);
         });
     }
 
@@ -855,6 +999,31 @@ Wick.Project = class extends Wick.Base {
     }
 
     /**
+     * In "Published Mode", all layers will be rendered even if they are set to be hidden.
+     * This is enabled during GIF/Video export, and enabled when the project is run standalone.
+     * @type {boolean}
+     */
+    get publishedMode () {
+        return this._publishedMode;
+    }
+
+    set publishedMode (publishedMode) {
+        this._publishedMode = publishedMode;
+    }
+
+    /**
+     * The current error, if one was thrown, during the last tick.
+     * @type {Error}
+     */
+    get error () {
+        return this._error;
+    }
+
+    set error (error) {
+        this._error = error;
+    }
+
+    /**
      * Ticks the project.
      * @returns {object} An object containing information about an error, if one occured while running scripts. Null otherwise.
      */
@@ -870,9 +1039,34 @@ Wick.Project = class extends Wick.Base {
 
         this._mouseTargets = this.tools.interact.mouseTargets;
 
-        // Tick the focus
+        // Reset scripts before ticking
+        this._scriptSchedule = [];
+
+        // Tick the focused clip
         this.focus._attachChildClipReferences();
-        var error = this.focus.tick();
+        this.focus.tick();
+
+        // Run scripts in schedule, in order based on Tickable.possibleScripts.
+        this._error = null;
+        Wick.Tickable.possibleScripts.forEach(scriptOrderName => {
+            this._scriptSchedule.forEach(scheduledScript => {
+                // Stop early if an error was thrown in the last script ran.
+                if(this._error) {
+                    return;
+                }
+
+                var uuid = scheduledScript.uuid;
+                var name = scheduledScript.name;
+
+                // Make sure we only run the script based on the current iteration through possibleScripts
+                if(name !== scriptOrderName) {
+                    return;
+                }
+
+                // Run the script on the corresponding object!
+                Wick.ObjectCache.getObjectByUUID(uuid).runScript(name);
+            });
+        });
 
         // Save the current keysDown
         this._lastMousePosition = {x: this._mousePosition.x, y: this._mousePosition.y};
@@ -880,7 +1074,23 @@ Wick.Project = class extends Wick.Base {
 
         this.view.render();
 
-        return error;
+        if(this._error) {
+            return this._error;
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Schedules a script to be run at the end of the current tick.
+     * @param {string} uuid - the UUID of the object running the script.
+     * @param {string} name - the name of the script to run, see Tickable.possibleScripts.
+     */
+    scheduleScript (uuid, name) {
+        this._scriptSchedule.push({
+            uuid: uuid,
+            name: name,
+        });
     }
 
     /**
@@ -919,6 +1129,7 @@ Wick.Project = class extends Wick.Base {
         this._tickIntervalID = setInterval(() => {
             args.onBeforeTick();
 
+            this.tools.interact.determineMouseTargets();
             var error = this.tick();
             this.view.paper.view.update();
             if(error) {
@@ -953,8 +1164,54 @@ Wick.Project = class extends Wick.Base {
         // Loading the snapshot to restore project state also moves the playhead back to where it was originally.
         // We actually don't want this, preview play should actually move the playhead after it's stopped.
         var currentPlayhead = this.focus.timeline.playheadPosition;
+
+        // Load the state of the project before it was played
         this.history.loadSnapshot('state-before-play');
-        this.focus.timeline.playheadPosition = currentPlayhead;
+
+        if(this.error) {
+            // An error occured.
+            var errorObjUUID = this._error.uuid;
+            var errorObj = Wick.ObjectCache.getObjectByUUID(errorObjUUID);
+
+            // Focus the parent of the object that caused the error so that we can select the error-causer.
+            this.focus = errorObj.parentClip;
+
+            // Select the object that caused the error
+            this.selection.clear();
+            this.selection.select(errorObj);
+        } else {
+            this.focus.timeline.playheadPosition = currentPlayhead;
+        }
+    }
+
+    /**
+     * Inject the project into an element on a webpage and start playing the project.
+     * @param {Element} element - the element to inject the project into
+     */
+    inject (element) {
+        this.view.canvasContainer = element;
+        this.view.fitMode = 'fill';
+        this.view.canvasBGColor = '#000000';
+
+        window.onresize = function () {
+            project.view.resize();
+        }
+        this.view.resize();
+        this.view.prerender();
+
+        this.focus = this.root;
+        this.focus.timeline.playheadPosition = 1;
+
+        this.publishedMode = true;
+        this.play({
+            onAfterTick: (() => {
+                this.view.render();
+            }),
+            onError: (error => {
+                console.error('Project threw an error!');
+                console.error(error);
+            }),
+        });
     }
 
     /**
@@ -1069,6 +1326,8 @@ Wick.Project = class extends Wick.Base {
 
         this.history.saveSnapshot('before-gif-render');
         this.mute();
+        this.selection.clear();
+        this.publishedMode = true;
         this.tick();
 
         // Put the project canvas inside a div that's the same size as the project so the frames render at the correct resolution.
@@ -1111,13 +1370,16 @@ Wick.Project = class extends Wick.Base {
                     this.view.resize();
 
                     this.history.loadSnapshot('before-gif-render');
+                    this.publishedMode = false;
                     this.view.render();
 
                     window.document.body.removeChild(container);
 
                     args.onFinish(frameImages);
                 } else {
+                    var oldPlayhead = renderCopy.activeTimeline.playheadPosition
                     renderCopy.tick();
+                    renderCopy.activeTimeline.playheadPosition = oldPlayhead + 1;
                     renderFrame();
                 }
             }

@@ -1,3 +1,4 @@
+var fs = require('fs');
 var gulp = require('gulp');
 var babel = require("gulp-babel");
 var concat = require('gulp-concat');
@@ -7,6 +8,15 @@ var header = require('gulp-header');
 var mergeStream = require('merge-stream');
 
 gulp.task("default", function() {
+  /* Generate build number */
+  /* Year.Month.Day[micro] */
+  var date = new Date();
+  var year = date.getFullYear();
+  var month = date.getMonth() + 1;
+  var day = date.getDate();
+  var buildString = year + '.' + month + '.' + day;
+
+  /* Libraries */
   var libs = gulp
     .src([
       'lib/paper.js',
@@ -32,12 +42,15 @@ gulp.task("default", function() {
       'lib/soundcloud-waveform.js',
       'lib/Tween.js',
       'lib/uuid.js'
-    ]);
+    ])
+    .pipe(concat('libs.js'));
 
+  /* Engine */
   var src = gulp
     .src([
       'src/Wick.js',
       'src/Clipboard.js',
+      'src/Color.js',
       'src/FileCache.js',
       'src/History.js',
       'src/ObjectCache.js',
@@ -46,9 +59,12 @@ gulp.task("default", function() {
       'src/ObjectCache.js',
       'src/Transformation.js',
       'src/GlobalAPI.js',
-      'src/export/AudioTrack.js',
-      'src/export/WickFile.js',
-      'src/export/WickFile.Alpha.js',
+      'src/export/audio/AudioTrack.js',
+      'src/export/wick/WickFile.js',
+      'src/export/wick/WickFile.Alpha.js',
+      'src/export/wickobj/WickObjectFile.js',
+      'src/export/html/HTMLExport.js',
+      'src/export/zip/ZIPExport.js',
       'src/base/Base.js',
       'src/base/Layer.js',
       'src/base/Project.js',
@@ -58,10 +74,11 @@ gulp.task("default", function() {
       'src/base/Path.js',
       'src/base/asset/Asset.js',
       'src/base/asset/FileAsset.js',
+      'src/base/asset/FontAsset.js',
       'src/base/asset/ImageAsset.js',
       'src/base/asset/ClipAsset.js',
       'src/base/asset/SoundAsset.js',
-      'src/base/asset/FontAsset.js',
+      'src/base/asset/SVGAsset.js',
       'src/base/Tickable.js',
       'src/base/Frame.js',
       'src/base/Clip.js',
@@ -83,7 +100,7 @@ gulp.task("default", function() {
       'src/tools/Text.js',
       'src/tools/Zoom.js',
       'src/view/paper-ext/Layer.erase.js',
-      'src/view/paper-ext/Layer.hole.js',
+      'src/view/paper-ext/Paper.hole.js',
       'src/view/paper-ext/Paper.OrderingUtils.js',
       'src/view/paper-ext/Paper.SelectionWidget.js',
       'src/view/paper-ext/Paper.SelectionBox.js',
@@ -121,6 +138,7 @@ gulp.task("default", function() {
       'src/gui/NumberLine.js',
       'src/gui/OnionSkinRange.js',
       'src/gui/Playhead.js',
+      'src/gui/PopupMenu.js',
       'src/gui/Project.js',
       'src/gui/Scrollbar.js',
       'src/gui/ScrollbarGrabber.js',
@@ -130,10 +148,28 @@ gulp.task("default", function() {
       'src/gui/Tween.js',
       'src/gui/TweenGhost.js',
     ])
-    .pipe(header('/*Wick Engine https://github.com/Wicklets/wick-engine*/'))
-    .pipe(babel());
+    .pipe(babel())
+    .pipe(concat('src.js'));
 
-  return mergeStream(libs, src)
+  /* Write wickengine.js */
+  return mergeStream(src, libs)
     .pipe(concat('wickengine.js'))
-    .pipe(gulp.dest('dist'));
+    .pipe(header('/*Wick Engine https://github.com/Wicklets/wick-engine*/\nvar WICK_ENGINE_BUILD_VERSION = "' + buildString + '";\n'))
+    .pipe(gulp.dest('dist'))
+    .on('end', () => {
+      /* Generate empty HTML file ready for wick projects to be injected into */
+      var blankHTML = fs.readFileSync('src/export/html/project.html', 'utf8');
+      var engineSRC = fs.readFileSync('dist/wickengine.js', 'utf8');
+      var engineSRCSafe = engineSRC.replace(/\$/g, "$$$"); // http://forums.mozillazine.org/viewtopic.php?f=19&t=2182187
+      blankHTML = blankHTML.replace('<!--INJECT_WICKENGINE_HERE-->', engineSRCSafe);
+      fs.writeFileSync('dist/emptyproject.html', blankHTML);
+
+      /* Copy ZIP export resources to dist folder */
+      var zipindex = fs.readFileSync('src/export/zip/index.html', 'utf8');
+      var preloadjs = fs.readFileSync('src/export/zip/preloadjs.min.js', 'utf8');
+      var projecthtml = fs.readFileSync('src/export/html/project.html', 'utf8');
+      fs.writeFileSync('dist/index.html', zipindex);
+      fs.writeFileSync('dist/preloadjs.min.js', preloadjs);
+      fs.writeFileSync('dist/project.html', projecthtml);
+    });
 });

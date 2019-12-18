@@ -202,10 +202,24 @@ Wick.GUIElement = class {
     }
 }
 
-Wick.GUIElement.GRID_DEFAULT_CELL_WIDTH = 38;
-Wick.GUIElement.GRID_DEFAULT_CELL_HEIGHT = 42;
-Wick.GUIElement.FRAMES_STRIP_HEIGHT = 40;
-Wick.GUIElement.GRID_MARGIN = Wick.GUIElement.GRID_DEFAULT_CELL_HEIGHT - Wick.GUIElement.FRAMES_STRIP_HEIGHT;
+Wick.GUIElement.GRID_SMALL_CELL_WIDTH = 22;
+Wick.GUIElement.GRID_SMALL_CELL_HEIGHT = 32;
+Wick.GUIElement.GRID_NORMAL_CELL_WIDTH = 38;
+Wick.GUIElement.GRID_NORMAL_CELL_HEIGHT = 42;
+Wick.GUIElement.GRID_LARGE_CELL_WIDTH = 62;
+Wick.GUIElement.GRID_LARGE_CELL_HEIGHT = 52;
+
+/* Automatically choose larger frames if we're on a tablet */
+const userAgent = navigator.userAgent.toLowerCase();
+const isTablet = /(ipad|tablet|(android(?!.*mobile))|(windows(?!.*phone)(.*touch))|kindle|playbook|silk|(puffin(?!.*(IP|AP|WP))))/.test(userAgent);
+if(isTablet) {
+    Wick.GUIElement.GRID_DEFAULT_CELL_WIDTH = Wick.GUIElement.GRID_LARGE_CELL_WIDTH;
+    Wick.GUIElement.GRID_DEFAULT_CELL_HEIGHT = Wick.GUIElement.GRID_LARGE_CELL_HEIGHT;
+} else {
+    Wick.GUIElement.GRID_DEFAULT_CELL_WIDTH = Wick.GUIElement.GRID_NORMAL_CELL_WIDTH;
+    Wick.GUIElement.GRID_DEFAULT_CELL_HEIGHT = Wick.GUIElement.GRID_NORMAL_CELL_HEIGHT;
+}
+Wick.GUIElement.GRID_MARGIN = 1;
 
 Wick.GUIElement.TIMELINE_BACKGROUND_COLOR = '#2A2E30';
 
@@ -222,7 +236,7 @@ Wick.GUIElement.BREADCRUMBS_ACTIVE_BORDER_COLOR = '#1EE29A';
 Wick.GUIElement.BREADCRUMBS_HIGHLIGHT_HEIGHT = 3;
 Wick.GUIElement.BREADCRUMBS_PADDING = 5;
 
-Wick.GUIElement.LAYERS_CONTAINER_WIDTH = 195;
+Wick.GUIElement.LAYERS_CONTAINER_WIDTH = 160;
 
 Wick.GUIElement.NUMBER_LINE_HEIGHT = 35;
 Wick.GUIElement.NUMBER_LINE_NUMBERS_HIGHLIGHT_COLOR = '#ffffff';
@@ -231,10 +245,11 @@ Wick.GUIElement.NUMBER_LINE_NUMBERS_FONT_FAMILY = 'PT Mono';
 Wick.GUIElement.NUMBER_LINE_NUMBERS_FONT_SIZE = '18';
 
 Wick.GUIElement.FRAME_HEIGHT = Wick.GUIElement.FRAMES_STRIP_HEIGHT;
-Wick.GUIElement.FRAME_HOVERED_OVER = '#D3F8F4';
-Wick.GUIElement.FRAME_TWEENED_HOVERED_OVER = '#bbbbee';
+Wick.GUIElement.FRAME_HOVERED_OVER = '#1EE29A';
+Wick.GUIElement.FRAME_TWEENED_HOVERED_OVER = '#ddddff';
 Wick.GUIElement.FRAME_CONTENTFUL_FILL_COLOR = '#ffffff';
-Wick.GUIElement.FRAME_UNCONTENTFUL_FILL_COLOR = '#ffffff';
+Wick.GUIElement.FRAME_AUDIO_FILL_COLOR = '#ccffff';
+Wick.GUIElement.FRAME_UNCONTENTFUL_FILL_COLOR = 'rgba(233,233,233,0.8)';
 Wick.GUIElement.FRAME_TWEENED_FILL_COLOR = '#ffffff';
 Wick.GUIElement.FRAME_BORDER_RADIUS = 5;
 Wick.GUIElement.FRAME_CONTENT_DOT_RADIUS = 7;
@@ -295,6 +310,7 @@ Wick.GUIElement.LAYER_LABEL_INACTIVE_FONT_COLOR = '#322E2E';
 Wick.GUIElement.LAYER_LABEL_FONT_WEIGHT = '600';
 Wick.GUIElement.LAYER_LABEL_FONT_FAMILY = 'Nunito Sans';
 Wick.GUIElement.LAYER_LABEL_GHOST_COLOR =  Wick.GUIElement.SELECTED_ITEM_BORDER_COLOR;
+Wick.GUIElement.LAYER_LABEL_HOVER_COLOR = '#F5A623';
 
 /* These icons must be loaded externally. */
 Wick.GUIElement.LAYER_BUTTON_ICON_COLOR = '#000000';

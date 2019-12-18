@@ -27,6 +27,10 @@ Wick.Tools.Text = class extends Wick.Tool {
         this.name = 'text';
     }
 
+    get doubleClickEnabled () {
+        return false;
+    }
+
     /**
      *
      * @type {string}
@@ -65,10 +69,13 @@ Wick.Tools.Text = class extends Wick.Tool {
         } else {
             var text = new this.paper.PointText(e.point);
             text.justification = 'left';
-            text.fillColor = 'black';
+            text.fillColor = this.getSetting('fillColor').rgba;
             text.content = 'Text';
             text.fontSize = 24;
             text.data.editMode = true;
+
+            var wickText = new Wick.Path({json: text.exportJSON({asString:false})})
+            this.project.activeFrame.addPath(wickText);
         }
         this.fireEvent('canvasModified');
     }

@@ -21,8 +21,8 @@ import React, { Component } from 'react';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 
 import WickAceEditor from './WickAceEditor/WickAceEditor';
-import SelectSubTabButton from 'Editor/Util/SelectSubTabButton/SelectSubTabButton';
 import AddScriptPanel from './AddScriptPanel/AddScriptPanel';
+import TabbedInterface from 'Editor/Util/TabbedInterface/TabbedInterface';
 
 import './_wicktabcodeeditor.scss';
 import './_wicktabcodeeditortabstyling.scss';
@@ -51,9 +51,7 @@ class WickTabCodeEditor extends Component {
   }
 
   componentDidUpdate = (prevProps, prevState) => {
-    if (this.props.errors && this.props.errors instanceof Array && this.props.errors.length > 0) {
-      this.focusError = this.props.errors[0];
-    }
+    this.focusError = this.props.error;
   }
 
   pickColor = (text) => {
@@ -97,10 +95,12 @@ class WickTabCodeEditor extends Component {
     }
     // Otherwise, ignore.
 
+    this.props.clearCodeEditorError();
   }
 
   renderNewAceEditor = (script) => {
     let wrappedUpdate = (src) => {
+      this.props.requestAutosave();
       this.props.script.updateScript(script.name, src);
       this.props.onMinorScriptUpdate(src);
     }
@@ -112,7 +112,7 @@ class WickTabCodeEditor extends Component {
         onUpdate={wrappedUpdate}
         script={script.src}
         name={script.name}
-        errors={this.props.errors.filter(error => {return error.name === script.name})}
+        error={this.props.error}
         onCursorChange={this.props.onCursorChange}
         toggleCodeEditor={this.props.toggleCodeEditor}
       />
@@ -156,8 +156,8 @@ class WickTabCodeEditor extends Component {
    * Returns the scripts which can be added based on the currently selected sub tab.
    * @returns {object[]} Scripts returned in the form of an object with name, used, and description properties.
    */
-  getAddableScripts = () => {
-    let addable = this.scriptsByType[this.state.scriptSubTab];
+  getAddableScripts = (tab) => {
+    let addable = this.scriptsByType[tab];
     let availableScripts = this.props.script.getAvailableScripts();
 
     let final = []
@@ -181,18 +181,23 @@ class WickTabCodeEditor extends Component {
     this.props.rerenderCodeEditor();
   }
 
+  renderAddScriptPanel = (tab) => {
+    return (
+      <AddScriptPanel
+      scripts={this.getAddableScripts(tab)}
+      addScript={this.addScript} />
+    )
+  }
+
   renderAddScriptTabPanel = () => {
     return (
       <TabPanel>
         <div id="add-scripts-panel-container">
-          <div id="select-sub-tab-list">
-            <SelectSubTabButton selected={this.state.scriptSubTab} name="Mouse" action={this.setSubTab}/>
-            <SelectSubTabButton selected={this.state.scriptSubTab} name="Keyboard" action={this.setSubTab}/>
-            <SelectSubTabButton selected={this.state.scriptSubTab} name="Timeline" action={this.setSubTab}/>
-          </div>
-          <AddScriptPanel
-            scripts={this.getAddableScripts()}
-            addScript={this.addScript} />
+          <TabbedInterface className="pop-out-add-scripts-body" tabNames={["Mouse", "Keyboard", "Timeline"]}>
+            {this.renderAddScriptPanel("Mouse")}
+            {this.renderAddScriptPanel("Keyboard")}
+            {this.renderAddScriptPanel("Timeline")}
+          </TabbedInterface>
         </div>
       </TabPanel>
     );
