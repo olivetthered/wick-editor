@@ -55865,8 +55865,6 @@ Wick.Tools.Text = class extends Wick.Tool {
   constructor() {
     super();
     this.name = 'text';
-    this.hoveredOverText = null;
-    this.editingText = null;
   }
 
   get doubleClickEnabled() {
@@ -55888,13 +55886,7 @@ Wick.Tools.Text = class extends Wick.Tool {
 
   onActivate(e) {}
 
-  onDeactivate(e) {
-    if (this.editingText) {
-      this.finishEditingText();
-    }
-
-    this.hoveredOverText = null;
-  }
+  onDeactivate(e) {}
 
   onMouseMove(e) {
     super.onMouseMove(e);
@@ -55909,27 +55901,24 @@ Wick.Tools.Text = class extends Wick.Tool {
   }
 
   onMouseDown(e) {
-    if (this.editingText) {
-      this.finishEditingText();
-    } else if (this.hoveredOverText) {
-      this.editingText = this.hoveredOverText;
-      e.item.edit(this.project.view.paper);
+    if (this.hoveredOverText) {
+      e.item.data.editMode = true;
     } else {
       var text = new this.paper.PointText(e.point);
       text.justification = 'left';
       text.fillColor = this.getSetting('fillColor').rgba;
       text.content = 'Text';
       text.fontSize = 24;
+      text.data.editMode = true;
       var wickText = new Wick.Path({
         json: text.exportJSON({
           asString: false
         })
       });
       this.project.activeFrame.addPath(wickText);
-      this.project.view.render();
-      this.editingText = wickText.view.item;
-      this.editingText.edit(this.project.view.paper); //this.fireEvent('canvasModified');
     }
+
+    this.fireEvent('canvasModified');
   }
 
   onMouseDrag(e) {}
@@ -55939,18 +55928,18 @@ Wick.Tools.Text = class extends Wick.Tool {
    * Stop editing the current text and apply changes.
    */
 
-
-  finishEditingText() {
-    if (!this.editingText) return;
-    this.editingText.finishEditing();
-
-    if (this.editingText.content === '') {
-      this.editingText.remove();
-    }
-
-    this.editingText = null;
-    this.fireEvent('canvasModified');
+  /*
+  finishEditingText () {
+     if(!this.editingText) return;
+     this.editingText.finishEditing();
+     if(this.editingText.content === '') {
+         this.editingText.remove();
+     }
+     this.editingText = null;
+     this.fireEvent('canvasModified');
   }
+  */
+
 
 };
 /*
@@ -58598,7 +58587,19 @@ Wick.View.Frame = class extends Wick.View {
     this.pathsLayer.removeChildren();
     this.model.paths.forEach(path => {
       path.view.render();
-      this.pathsLayer.addChild(path.view.item);
+      this.pathsLayer.addChild(path.view.item); // Render text edit boxes
+
+      if (path.view.item.data.editMode) {
+        var text = path.view.item;
+        var project = this.model.project.view;
+
+        if (!project.textEdit) {
+          project.textEdit = text;
+          project.textEdit.edit(project.paper);
+        } else {
+          project.textEdit.finishEditing();
+        }
+      }
     });
   }
 
