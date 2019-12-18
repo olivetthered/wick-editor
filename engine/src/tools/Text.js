@@ -73,7 +73,7 @@ Wick.Tools.Text = class extends Wick.Tool {
 
     onMouseUp (e) {
         if(this.hoveredOverText) {
-
+            
         } else {
             var text = new this.paper.PointText(e.point);
             text.justification = 'left';

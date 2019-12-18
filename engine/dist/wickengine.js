@@ -58566,7 +58566,13 @@ Wick.View.Frame = class extends Wick.View {
     if (!args) args = {};
     this.pathsLayer.data.wickUUID = this.model.uuid;
     this.pathsLayer.data.wickType = 'paths';
-    this.pathsLayer.removeChildren();
+    this.pathsLayer.removeChildren(); // Clear current text edit box
+
+    if (window.textEdit) {
+      window.textEdit.finishEditing();
+      delete window.textEdit;
+    }
+
     this.model.paths.forEach(path => {
       path.view.render();
       this.pathsLayer.addChild(path.view.item); // Render text edit boxes
@@ -58578,9 +58584,6 @@ Wick.View.Frame = class extends Wick.View {
         if (!window.textEdit) {
           window.textEdit = text;
           window.textEdit.edit(project.view.paper);
-        } else {
-          window.textEdit.finishEditing();
-          delete window.textEdit;
         }
       }
     });
