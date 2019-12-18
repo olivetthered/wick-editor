@@ -50512,6 +50512,7 @@ Wick.Path = class extends Wick.Base {
     super(args);
     this._fontStyle = 'normal';
     this._fontWeight = 400;
+    this._editMode = false;
 
     if (args.json) {
       this.json = args.json;
@@ -50581,6 +50582,7 @@ Wick.Path = class extends Wick.Base {
 
     data.fontStyle = this._fontStyle;
     data.fontWeight = this._fontWeight;
+    data.editMode = this._editMode;
     return data;
   }
 
@@ -50589,6 +50591,7 @@ Wick.Path = class extends Wick.Base {
     this.json = data.json;
     this._fontStyle = data.fontStyle || 'normal';
     this._fontWeight = data.fontWeight || 400;
+    this._editMode = data.editMode || false;
   }
   /**
    *
@@ -50612,6 +50615,19 @@ Wick.Path = class extends Wick.Base {
     } else {
       return 'path';
     }
+  }
+  /**
+   * Controls whether or not a text path is currently editable.
+   * @type {boolean}
+   */
+
+
+  get editMode() {
+    return this._editMode;
+  }
+
+  set editMode(editMode) {
+    this._editMode = editMode;
   }
   /**
    * Path data exported from paper.js using exportJSON({asString:false}).
@@ -55885,46 +55901,28 @@ Wick.Tools.Text = class extends Wick.Tool {
     }
   }
 
-  onMouseDown(e) {
-    if (this.hoveredOverText) {
-      e.item.data.editMode = true;
-    } else {
+  onMouseDown(e) {}
+
+  onMouseDrag(e) {}
+
+  onMouseUp(e) {
+    if (this.hoveredOverText) {} else {
       var text = new this.paper.PointText(e.point);
       text.justification = 'left';
       text.fillColor = this.getSetting('fillColor').rgba;
       text.content = 'Text';
       text.fontSize = 24;
-      text.data.editMode = true;
       var wickText = new Wick.Path({
         json: text.exportJSON({
           asString: false
         })
       });
+      wickText.editMode = true;
       this.project.activeFrame.addPath(wickText);
     }
 
-    this.fireEvent('canvasModified');
+    this.project.view.render();
   }
-
-  onMouseDrag(e) {}
-
-  onMouseUp(e) {}
-  /**
-   * Stop editing the current text and apply changes.
-   */
-
-  /*
-  finishEditingText () {
-     if(!this.editingText) return;
-     this.editingText.finishEditing();
-     if(this.editingText.content === '') {
-         this.editingText.remove();
-     }
-     this.editingText = null;
-     this.fireEvent('canvasModified');
-  }
-  */
-
 
 };
 /*
@@ -57982,7 +57980,6 @@ Wick.View.Project = class extends Wick.View {
     this.paper.project.addLayer(this.model.selection.view.layer); // Render black bars (for published projects)
 
     if (this.model.publishedMode) {
-      console.log(this._svgBordersLayer);
       this.paper.project.addLayer(this._svgBordersLayer);
     }
   }
@@ -58574,15 +58571,16 @@ Wick.View.Frame = class extends Wick.View {
       path.view.render();
       this.pathsLayer.addChild(path.view.item); // Render text edit boxes
 
-      if (path.view.item.data.editMode) {
+      if (path.editMode) {
         var text = path.view.item;
-        var project = this.model.project.view;
+        var project = this.model.project;
 
-        if (!project.textEdit) {
-          project.textEdit = text;
-          project.textEdit.edit(project.paper);
+        if (!window.textEdit) {
+          window.textEdit = text;
+          window.textEdit.edit(project.view.paper);
         } else {
-          project.textEdit.finishEditing();
+          window.textEdit.finishEditing();
+          delete window.textEdit;
         }
       }
     });

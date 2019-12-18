@@ -64,20 +64,7 @@ Wick.Tools.Text = class extends Wick.Tool {
     }
 
     onMouseDown (e) {
-        if(this.hoveredOverText) {
-            e.item.data.editMode = true;
-        } else {
-            var text = new this.paper.PointText(e.point);
-            text.justification = 'left';
-            text.fillColor = this.getSetting('fillColor').rgba;
-            text.content = 'Text';
-            text.fontSize = 24;
-            text.data.editMode = true;
 
-            var wickText = new Wick.Path({json: text.exportJSON({asString:false})})
-            this.project.activeFrame.addPath(wickText);
-        }
-        this.fireEvent('canvasModified');
     }
 
     onMouseDrag (e) {
@@ -85,21 +72,19 @@ Wick.Tools.Text = class extends Wick.Tool {
     }
 
     onMouseUp (e) {
+        if(this.hoveredOverText) {
 
-    }
+        } else {
+            var text = new this.paper.PointText(e.point);
+            text.justification = 'left';
+            text.fillColor = this.getSetting('fillColor').rgba;
+            text.content = 'Text';
+            text.fontSize = 24;
 
-    /**
-     * Stop editing the current text and apply changes.
-     */
-     /*
-    finishEditingText () {
-        if(!this.editingText) return;
-        this.editingText.finishEditing();
-        if(this.editingText.content === '') {
-            this.editingText.remove();
+            var wickText = new Wick.Path({json: text.exportJSON({asString:false})});
+            wickText.editMode = true;
+            this.project.activeFrame.addPath(wickText);
         }
-        this.editingText = null;
-        this.fireEvent('canvasModified');
+        this.project.view.render();
     }
-    */
 }

@@ -79,14 +79,15 @@ Wick.View.Frame = class extends Wick.View {
             this.pathsLayer.addChild(path.view.item);
 
             // Render text edit boxes
-            if(path.view.item.data.editMode) {
+            if(path.editMode) {
                 var text = path.view.item;
-                var project = this.model.project.view;
-                if(!project.textEdit) {
-                    project.textEdit = text;
-                    project.textEdit.edit(project.paper);
+                var project = this.model.project;
+                if(!window.textEdit) {
+                    window.textEdit = text;
+                    window.textEdit.edit(project.view.paper);
                 } else {
-                    project.textEdit.finishEditing();
+                    window.textEdit.finishEditing();
+                    delete window.textEdit;
                 }
             }
         });

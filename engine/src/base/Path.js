@@ -31,6 +31,7 @@ Wick.Path = class extends Wick.Base {
 
         this._fontStyle = 'normal';
         this._fontWeight = 400;
+        this._editMode = false;
 
         if(args.json) {
             this.json = args.json;
@@ -95,6 +96,7 @@ Wick.Path = class extends Wick.Base {
 
         data.fontStyle = this._fontStyle;
         data.fontWeight = this._fontWeight;
+        data.editMode = this._editMode;
 
         return data;
     }
@@ -104,6 +106,7 @@ Wick.Path = class extends Wick.Base {
         this.json = data.json;
         this._fontStyle = data.fontStyle || 'normal';
         this._fontWeight = data.fontWeight || 400;
+        this._editMode = data.editMode || false;
     }
 
     /**
@@ -125,6 +128,18 @@ Wick.Path = class extends Wick.Base {
         } else {
             return 'path';
         }
+    }
+
+    /**
+     * Controls whether or not a text path is currently editable.
+     * @type {boolean}
+     */
+    get editMode () {
+        return this._editMode;
+    }
+
+    set editMode (editMode) {
+        this._editMode = editMode;
     }
 
     /**
