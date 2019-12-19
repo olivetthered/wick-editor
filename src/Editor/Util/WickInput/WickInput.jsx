@@ -212,11 +212,14 @@ class WickInput extends Component {
 
   renderButton = () => {
     return (
-      <div
+      <button
+        type="button"
         onClick={this.props.onClick}
         className={classNames("wick-button ", this.props.className)}>
-        {this.props.children}
-      </div>
+        <div style={{width:'100%', height:'100%'}}>
+          {this.props.children}
+        </div>
+      </button>
     );
   }
 }
