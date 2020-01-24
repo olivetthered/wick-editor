@@ -267,6 +267,7 @@ describe('Wick.Layer', function() {
             expect(layer.getFrameAtPlayheadPosition(2)).to.equal('2');
             expect(layer.getFrameAtPlayheadPosition(3)).to.equal('6');
             expect(layer.getFrameAtPlayheadPosition(4)).to.equal('7');
+            expect(layer.getFrameAtPlayheadPosition(5)).to.equal(undefined);
         });
     });
 });
