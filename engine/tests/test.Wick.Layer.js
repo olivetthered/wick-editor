@@ -236,4 +236,37 @@ describe('Wick.Layer', function() {
             expect(project.activeLayer.getFrameAtPlayheadPosition(4)).to.not.equal(frame2);
         });
     });
+
+    describe('#removeFrames', function () {
+        it('should remove frames and shift frames back', function() {
+            var layer = new Wick.Layer();
+            layer.addFrame(new Wick.Frame({start:1}));
+            layer.addFrame(new Wick.Frame({start:2}));
+            layer.addFrame(new Wick.Frame({start:3}));
+            layer.addFrame(new Wick.Frame({start:4}));
+            layer.addFrame(new Wick.Frame({start:5}));
+            layer.addFrame(new Wick.Frame({start:6}));
+            layer.addFrame(new Wick.Frame({start:7}));
+
+            layer.getFrameAtPlayheadPosition(1).identifer = '1';
+            layer.getFrameAtPlayheadPosition(2).identifer = '2';
+            layer.getFrameAtPlayheadPosition(3).identifer = '3';
+            layer.getFrameAtPlayheadPosition(4).identifer = '4';
+            layer.getFrameAtPlayheadPosition(5).identifer = '5';
+            layer.getFrameAtPlayheadPosition(6).identifer = '6';
+            layer.getFrameAtPlayheadPosition(7).identifer = '7';
+
+            layer.removeAndShiftFrames([
+                layer.getFrameAtPlayheadPosition(3),
+                layer.getFrameAtPlayheadPosition(4),
+                layer.getFrameAtPlayheadPosition(5),
+            ]);
+
+            expect(layer.frames.length).to.equal(4);
+            expect(layer.getFrameAtPlayheadPosition(1)).to.equal('1');
+            expect(layer.getFrameAtPlayheadPosition(2)).to.equal('2');
+            expect(layer.getFrameAtPlayheadPosition(3)).to.equal('6');
+            expect(layer.getFrameAtPlayheadPosition(4)).to.equal('7');
+        });
+    });
 });

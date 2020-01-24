@@ -48016,6 +48016,20 @@ Wick.Layer = class extends Wick.Base {
 
     return gaps;
   }
+  /**
+   * Performs a Flash-style remove frames action where frames are moved backwards
+   * to fill the gap created by the removal.
+   */
+
+
+  removeAndShiftFrames(frames) {
+    /*this.activeTimeline.deferFrameGapResolve();
+    objects.forEach(object => {
+        object.remove && object.remove();
+    });
+    this.activeTimeline
+    this.activeTimeline.resolveFrameGaps([]);*/
+  }
 
 };
 /*
