@@ -53,6 +53,7 @@
     "build": "react-scripts build && cp CNAME_editor ./build/CNAME",
     "build-engine": "cd engine; mkdir dist/; gulp; cp -a dist/. ../public/corelibs/wick-engine/",
     "build-electron-macos": "electron-packager . 'Wick Editor' --ignore=node_modules --icon=public/icon.icns--platform=darwin --out build-electron --overwrite",
+    "build-electron-macos-installer": "electron-installer-dmg './build-electron/Wick Editor-darwin-x64/Wick Editor.app' ./build-electron/WickEditor",
     "build-electron-windows": "electron-packager . wickwindows --ignore=node_modules --icon=public/icon.ico --platform=win32 --out build-electron --overwrite",
     "build-ios": "cp -r build/* build-ios/WebViewExample/local_html",
     "test": "react-scripts test",
@@ -76,6 +77,7 @@
   ],
   "devDependencies": {
     "electron": "^6.0.10",
+    "electron-installer-dmg": "^3.0.0",
     "electron-packager": "^14.0.6"
   }
 }
