@@ -17,7 +17,7 @@
     "gulp-rename": "^2.0.0",
     "gulp-uglify": "^3.0.2",
     "localforage": "^1.7.3",
-    "node-sass": "^4.9.4",
+    "node-sass": "^7.0.0",
     "query-string": "^6.9.0",
     "rc-slider": "^8.6.3",
     "react": "^16.5.2",
